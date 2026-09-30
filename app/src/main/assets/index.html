@@ -87,6 +87,30 @@
       const [fireExtinguished, setFireExtinguished] = useState(false);
       const [alertMsg, setAlertMsg] = useState(null);
 
+      // 4-Gas Sniffer Dynamic Telemetry State (H2S, O2, CO, CH4)
+      const [o2Val, setO2Val] = useState(17.4);    // <19.5% deficiency alarm
+      const [coVal, setCoVal] = useState(380);     // >50 ppm lethal alarm
+      const [h2sVal, setH2sVal] = useState(14.8);  // >10 ppm fatal sour gas
+      const [ch4Val, setCh4Val] = useState(1.35);  // >1.25% LEL threshold
+
+      // Continuous sensor jitter simulating active suction pump
+      useEffect(() => {
+        const interval = setInterval(() => {
+          if (fireIntensity > 0) {
+            setO2Val(prev => +(17.4 + (Math.random() - 0.5) * 0.2).toFixed(1));
+            setCoVal(prev => Math.round(380 + (Math.random() - 0.5) * 8));
+            setH2sVal(prev => +(14.8 + (Math.random() - 0.5) * 0.4).toFixed(1));
+            setCh4Val(prev => +(1.35 + (Math.random() - 0.5) * 0.04).toFixed(2));
+          } else {
+            setO2Val(prev => +(20.9 + (Math.random() - 0.5) * 0.1).toFixed(1));
+            setCoVal(prev => Math.round(14 + (Math.random() - 0.5) * 3));
+            setH2sVal(prev => +(0.4 + (Math.random() - 0.5) * 0.1).toFixed(1));
+            setCh4Val(prev => +(0.08 + (Math.random() - 0.5) * 0.02).toFixed(2));
+          }
+        }, 1200);
+        return () => clearInterval(interval);
+      }, [fireIntensity]);
+
       // Assessment State
       const [qIndex, setQIndex] = useState(0);
       const [answers, setAnswers] = useState({});
@@ -213,10 +237,15 @@
         const timer = setInterval(() => {
           current = Math.max(0, current - 25);
           setFireIntensity(current);
+          setCoVal(prev => Math.max(14, prev - 90));
+          setH2sVal(prev => +(Math.max(0.4, prev - 3.6)).toFixed(1));
+          setO2Val(prev => +(Math.min(20.9, prev + 0.88)).toFixed(1));
+          setCh4Val(prev => +(Math.max(0.08, prev - 0.32)).toFixed(2));
+
           if (current === 0) {
             clearInterval(timer);
             setFireExtinguished(true);
-            speak('आग पूरी तरह बुझ गई है! बहुत अच्छा!', 'Fire extinguished successfully! Excellent work!');
+            speak('आग पूरी तरह बुझ गई है! बहुत अच्छा!', 'Fire extinguished successfully! Atmosphere safe!');
           }
         }, 400);
       };
@@ -229,6 +258,10 @@
         setFireIntensity(100);
         setFireExtinguished(false);
         setAlertMsg(null);
+        setO2Val(17.4);
+        setCoVal(380);
+        setH2sVal(14.8);
+        setCh4Val(1.35);
       };
 
       return (
@@ -378,15 +411,57 @@
                       </div>
 
                       {/* Flame Gauge */}
-                      <div className="bg-slate-950/80 backdrop-blur-md border border-slate-700/80 rounded-xl px-3 py-1.5 space-y-1 shadow-md">
+                      <div className="bg-slate-950/80 backdrop-blur-md border border-slate-700/80 rounded-xl px-2.5 py-1.5 space-y-1 shadow-md">
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-bold text-slate-200">Flame Gauge</span>
                           <span className={`font-mono font-black ${fireIntensity > 50 ? 'text-red-400' : fireIntensity > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                             {fireIntensity}% {fireIntensity === 0 ? '(EXTINGUISHED)' : ''}
                           </span>
                         </div>
-                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden border border-slate-700">
                           <div className={`h-full transition-all duration-300 rounded-full ${fireIntensity > 50 ? 'bg-gradient-to-r from-red-600 to-amber-500' : fireIntensity > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${fireIntensity}%` }} />
+                        </div>
+                      </div>
+
+                      {/* 4-Gas Sniffer AR HUD: H2S, O2, CO, CH4 */}
+                      <div className="bg-slate-950/90 backdrop-blur-md border border-slate-700/90 rounded-xl p-2 space-y-1.5 shadow-xl">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <div className="flex items-center gap-1.5 font-bold text-slate-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span>DGMS 4-Gas Sniffer</span>
+                            <span className="font-mono text-[9px] text-slate-400 bg-slate-900 px-1 py-0.2 rounded border border-slate-700">0.5L/m</span>
+                          </div>
+                          {(o2Val < 19.5 || coVal > 50 || h2sVal > 10.0 || ch4Val > 1.25) ? (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/60 animate-pulse">⚠️ ALARM</span>
+                          ) : (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">✓ SAFE</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-4 gap-1 text-center font-mono">
+                          <div className={`p-1 rounded-lg border ${o2Val < 19.5 ? 'bg-red-950/80 border-red-500 text-red-200' : 'bg-slate-900 border-slate-700 text-slate-200'}`}>
+                            <div className="flex justify-between text-[8px] text-slate-400 font-sans font-bold"><span>O₂</span><span>&gt;19.5%</span></div>
+                            <div className="text-xs font-black my-0.5">{o2Val}%</div>
+                            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden"><div className={`h-full ${o2Val < 19.5 ? 'bg-red-500' : 'bg-emerald-400'}`} style={{width: `${Math.min(100, (o2Val/22)*100)}%`}} /></div>
+                            <div className="text-[7.5px] uppercase font-bold mt-0.5">{o2Val < 19.5 ? 'LOW O₂' : 'NORMAL'}</div>
+                          </div>
+                          <div className={`p-1 rounded-lg border ${coVal > 50 ? 'bg-red-950/80 border-red-500 text-red-200' : 'bg-slate-900 border-slate-700 text-slate-200'}`}>
+                            <div className="flex justify-between text-[8px] text-slate-400 font-sans font-bold"><span>CO</span><span>&lt;50ppm</span></div>
+                            <div className="text-xs font-black my-0.5">{coVal}</div>
+                            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden"><div className={`h-full ${coVal > 50 ? 'bg-red-500' : 'bg-emerald-400'}`} style={{width: `${Math.min(100, (coVal/400)*100)}%`}} /></div>
+                            <div className="text-[7.5px] uppercase font-bold mt-0.5">{coVal > 50 ? 'TOXIC' : 'SAFE'}</div>
+                          </div>
+                          <div className={`p-1 rounded-lg border ${h2sVal > 10.0 ? 'bg-red-950/80 border-red-500 text-red-200' : 'bg-slate-900 border-slate-700 text-slate-200'}`}>
+                            <div className="flex justify-between text-[8px] text-slate-400 font-sans font-bold"><span>H₂S</span><span>&lt;10ppm</span></div>
+                            <div className="text-xs font-black my-0.5">{h2sVal}</div>
+                            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden"><div className={`h-full ${h2sVal > 10.0 ? 'bg-red-500' : 'bg-emerald-400'}`} style={{width: `${Math.min(100, (h2sVal/20)*100)}%`}} /></div>
+                            <div className="text-[7.5px] uppercase font-bold mt-0.5">{h2sVal > 10.0 ? 'LETHAL' : 'CLEAR'}</div>
+                          </div>
+                          <div className={`p-1 rounded-lg border ${ch4Val > 1.25 ? 'bg-amber-950/80 border-amber-500 text-amber-200' : 'bg-slate-900 border-slate-700 text-slate-200'}`}>
+                            <div className="flex justify-between text-[8px] text-slate-400 font-sans font-bold"><span>CH₄</span><span>&lt;1.25%</span></div>
+                            <div className="text-xs font-black my-0.5">{ch4Val}%</div>
+                            <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden"><div className={`h-full ${ch4Val > 1.25 ? 'bg-amber-500' : 'bg-emerald-400'}`} style={{width: `${Math.min(100, (ch4Val/2.5)*100)}%`}} /></div>
+                            <div className="text-[7.5px] uppercase font-bold mt-0.5">{ch4Val > 1.25 ? 'LEL HIGH' : 'SAFE'}</div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -461,6 +536,32 @@
                     <button onClick={() => setAlertMsg('❌ चेतावनी: Exit A ब्लॉक है (CO 380 ppm धुआं)!')} className="p-2.5 rounded-xl border border-red-200 bg-red-50 font-bold flex items-center gap-2 text-red-900">
                       <span>🔴 Exit A (Blocked Danger)</span>
                     </button>
+                  </div>
+
+                  {/* 4-Gas Sniffer Regulatory Telemetry Strip */}
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                      <span>Live 4-Gas Sniffer Sensor Readings</span>
+                      <span className="font-mono text-[9px] text-slate-500">DGMS Safe Limits</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 text-center font-mono text-xs">
+                      <div className={`p-1.5 rounded-xl border ${o2Val < 19.5 ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="text-[9px] text-slate-500 font-sans">O₂ (Min 19.5%)</div>
+                        <div className={`font-bold ${o2Val < 19.5 ? 'text-red-600' : 'text-slate-900'}`}>{o2Val}%</div>
+                      </div>
+                      <div className={`p-1.5 rounded-xl border ${coVal > 50 ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="text-[9px] text-slate-500 font-sans">CO (Max 50)</div>
+                        <div className={`font-bold ${coVal > 50 ? 'text-red-600' : 'text-slate-900'}`}>{coVal}ppm</div>
+                      </div>
+                      <div className={`p-1.5 rounded-xl border ${h2sVal > 10.0 ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="text-[9px] text-slate-500 font-sans">H₂S (Max 10)</div>
+                        <div className={`font-bold ${h2sVal > 10.0 ? 'text-red-600' : 'text-slate-900'}`}>{h2sVal}ppm</div>
+                      </div>
+                      <div className={`p-1.5 rounded-xl border ${ch4Val > 1.25 ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="text-[9px] text-slate-500 font-sans">CH₄ (Max 1.25%)</div>
+                        <div className={`font-bold ${ch4Val > 1.25 ? 'text-amber-700' : 'text-slate-900'}`}>{ch4Val}%</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

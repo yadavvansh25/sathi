@@ -16,7 +16,9 @@ import {
   ShieldCheck,
   Radio,
   ExternalLink,
-  Info
+  Info,
+  Activity,
+  RefreshCw
 } from 'lucide-react';
 
 interface ARDrillScreenProps {
@@ -25,6 +27,15 @@ interface ARDrillScreenProps {
   workerName?: string;
   workerId?: string;
 }
+
+// DGMS & OSHA Gas Threshold Limits (Permissible Exposure Limits)
+const GAS_THRESHOLDS = {
+  O2_MIN: 19.5,   // Below 19.5% Vol: Oxygen deficiency / Asphyxiation hazard
+  O2_MAX: 23.5,   // Above 23.5% Vol: Fire enrichment danger
+  CO_MAX: 50,     // Ceiling 50 ppm (TWA 25 ppm, >200 ppm immediately lethal)
+  H2S_MAX: 10.0,  // Ceiling 10.0 ppm (TWA 1.0 ppm, toxic sour gas)
+  CH4_MAX: 1.25   // Mine air regulation limit 1.25% (25% Lower Explosive Limit)
+};
 
 export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
   onFinishAndEvaluate,
@@ -99,13 +110,62 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
   const [violationAlert, setViolationAlert] = useState<string | null>(null);
 
   // -----------------------------------------------------------------
-  // 3. TELEMETRY ACTION TRIGGERS (OUTSIDE CAMERA)
+  // 3. REAL-TIME 4-GAS SNIFFER TELEMETRY & THRESHOLD STATE
+  // -----------------------------------------------------------------
+  // Initial fire state: Oxygen depleted by fire combustion, toxic CO & H2S spike
+  const [o2Percent, setO2Percent] = useState<number>(17.4);   // <19.5% Asphyxiation Alert
+  const [coPpm, setCoPpm] = useState<number>(380);          // >50 ppm Lethal CO Alert
+  const [h2sPpm, setH2sPpm] = useState<number>(14.8);       // >10.0 ppm Lethal H2S Alert
+  const [ch4Percent, setCh4Percent] = useState<number>(1.35); // >1.25% LEL Combustible Alert
+  const [snifferPumpActive, setSnifferPumpActive] = useState<boolean>(true);
+  const [snifferBuzzerMuted, setSnifferBuzzerMuted] = useState<boolean>(false);
+  const [isBumpTesting, setIsBumpTesting] = useState<boolean>(false);
+
+  // Evaluate Gas Threshold Violations in Real Time
+  const isO2Deficient = o2Percent < GAS_THRESHOLDS.O2_MIN;
+  const isCoToxic = coPpm > GAS_THRESHOLDS.CO_MAX;
+  const isH2sLethal = h2sPpm > GAS_THRESHOLDS.H2S_MAX;
+  const isCh4Hazard = ch4Percent > GAS_THRESHOLDS.CH4_MAX;
+  const hasGasThresholdViolation = isO2Deficient || isCoToxic || isH2sLethal || isCh4Hazard;
+
+  // Real-Time Sensor Oscillation (Jitter) Loop: Simulates active suction pump and catalytic/electrochemical cells
+  useEffect(() => {
+    const snifferInterval = setInterval(() => {
+      if (!isSpraying && !isBumpTesting) {
+        // Subtle micro-fluctuations around current base target
+        setO2Percent(prev => {
+          const target = firePercentage === 0 ? 20.9 : 17.4;
+          const jitter = (Math.random() - 0.5) * 0.16;
+          return parseFloat(Math.max(16.2, Math.min(21.2, target + jitter)).toFixed(1));
+        });
+        setCoPpm(prev => {
+          const target = firePercentage === 0 ? 14 : 380;
+          const jitter = (Math.random() - 0.5) * 8;
+          return Math.max(4, Math.min(420, Math.round(target + jitter)));
+        });
+        setH2sPpm(prev => {
+          const target = firePercentage === 0 ? 0.4 : 14.8;
+          const jitter = (Math.random() - 0.5) * 0.4;
+          return parseFloat(Math.max(0.1, Math.min(22.0, target + jitter)).toFixed(1));
+        });
+        setCh4Percent(prev => {
+          const target = firePercentage === 0 ? 0.08 : 1.35;
+          const jitter = (Math.random() - 0.5) * 0.04;
+          return parseFloat(Math.max(0.02, Math.min(2.5, target + jitter)).toFixed(2));
+        });
+      }
+    }, 1200);
+
+    return () => clearInterval(snifferInterval);
+  }, [isSpraying, isBumpTesting, firePercentage]);
+
+  // -----------------------------------------------------------------
+  // 4. TELEMETRY ACTION TRIGGERS (OUTSIDE CAMERA)
   // -----------------------------------------------------------------
   const [alarmSounded, setAlarmSounded] = useState<boolean>(false);
   const [co2ExtinguisherSelected, setCo2ExtinguisherSelected] = useState<boolean>(false);
   const [chosenExit, setChosenExit] = useState<'NONE' | 'EXIT_B' | 'EXIT_A'>('NONE');
   const [ambientTemp, setAmbientTemp] = useState<number>(58);
-  const [coPpm, setCoPpm] = useState<number>(380);
 
   // Web Speech API Voice synthesis helper
   const speakText = (textHi: string, textEn: string) => {
@@ -155,7 +215,7 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
     speakText('निशाना लॉक हुआ। अब CO2 स्प्रे करें!', 'Target locked at base. Squeeze lever to spray CO2.');
   };
 
-  // Step 4: Spray CO2
+  // Step 4: Spray CO2 (Dynamically extinguishes fire & clears toxic gas levels)
   const handleSprayCo2 = () => {
     if (!powerIsolated) {
       setViolationAlert('⚠️ जानलेवा खतरा: 440V चालू होने पर स्प्रे न करें!');
@@ -175,16 +235,46 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
     const interval = setInterval(() => {
       current = Math.max(0, current - 25);
       setFirePercentage(current);
-      setAmbientTemp(prev => Math.max(26, prev - 8));
-      setCoPpm(prev => Math.max(15, prev - 75));
+      setAmbientTemp(prev => Math.max(24, prev - 8));
+
+      // Dynamic Gas Telemetry clearing as combustion terminates & ventilation restores
+      setCoPpm(prev => Math.max(14, prev - 90));
+      setH2sPpm(prev => parseFloat(Math.max(0.4, prev - 3.6).toFixed(1)));
+      setO2Percent(prev => parseFloat(Math.min(20.9, prev + 0.88).toFixed(1)));
+      setCh4Percent(prev => parseFloat(Math.max(0.08, prev - 0.32).toFixed(2)));
 
       if (current === 0) {
         clearInterval(interval);
         setIsSpraying(false);
-        setArBannerText('आग पूरी तरह बुझ गई! सुरक्षित निकास B की ओर बढ़ें');
-        speakText('शाबाश! आग पूरी तरह बुझ गई है। अब सुरक्षित निकास B की ओर निकलें।', 'Fire extinguished. Evacuate via Exit B.');
+        setArBannerText('आग बुझ गई! गैस स्तर सुरक्षित सीमा में (Atmosphere Safe)');
+        speakText('शाबाश! आग पूरी तरह बुझ गई है और गैस स्तर सामान्य हो गया है। अब निकास B की ओर निकलें।', 'Fire extinguished. Atmosphere safe. Evacuate via Exit B.');
       }
     }, 450);
+  };
+
+  // Bump Test Simulation: Tests sniffer sensor response and threshold alarms
+  const handleBumpTest = () => {
+    setIsBumpTesting(true);
+    speakText('गैस स्निफर बंप टेस्ट शुरू हो रहा है।', 'Initiating 4-gas sniffer bump test.');
+    // Temporarily trigger full-scale check
+    const originalO2 = o2Percent;
+    const originalCo = coPpm;
+    const originalH2s = h2sPpm;
+    const originalCh4 = ch4Percent;
+
+    setO2Percent(16.5);
+    setCoPpm(250);
+    setH2sPpm(25.0);
+    setCh4Percent(2.0);
+
+    setTimeout(() => {
+      setO2Percent(originalO2);
+      setCoPpm(originalCo);
+      setH2sPpm(originalH2s);
+      setCh4Percent(originalCh4);
+      setIsBumpTesting(false);
+      speakText('बंप टेस्ट सफल। सभी सेंसर्स कैलिब्रेटेड हैं।', 'Bump test complete. All 4 sensors calibrated.');
+    }, 2000);
   };
 
   // Telemetry Triggers
@@ -204,8 +294,8 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
 
   const handleSelectExitA = () => {
     setChosenExit('EXIT_A');
-    setViolationAlert('❌ चेतावनी: Exit A ब्लॉक है (CO 380 ppm धुआं)! तुरंत Exit B चुनें!');
-    speakText('खतरा! Exit A ब्लॉक है, वहां न जाएं!', 'Danger! Exit A is blocked with toxic carbon monoxide!');
+    setViolationAlert(`❌ चेतावनी: Exit A ब्लॉक है (CO ${coPpm} ppm, H2S ${h2sPpm} ppm धुआं)! तुरंत Exit B चुनें!`);
+    speakText('खतरा! Exit A ब्लॉक है, वहां न जाएं!', 'Danger! Exit A is blocked with toxic carbon monoxide and hydrogen sulfide!');
   };
 
   const handleResetDrill = () => {
@@ -218,7 +308,10 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
     setCo2ExtinguisherSelected(false);
     setChosenExit('NONE');
     setAmbientTemp(58);
+    setO2Percent(17.4);
     setCoPpm(380);
+    setH2sPpm(14.8);
+    setCh4Percent(1.35);
     setViolationAlert(null);
     setArBannerText('पहले मेन पावर बंद करें (Isolate Power Source)');
   };
@@ -288,7 +381,7 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
         {/* -------------------------------------------------------------
             1. ACTUAL HARDWARE CAMERA INTEGRATION CONTAINER
             ------------------------------------------------------------- */}
-        <div className="relative w-full h-72 sm:h-96 rounded-2xl overflow-hidden bg-black border border-slate-300 shadow-md">
+        <div className="relative w-full h-[400px] sm:h-[450px] rounded-2xl overflow-hidden bg-black border border-slate-300 shadow-md">
           {/* Live Video Feed */}
           <video
             ref={videoRef}
@@ -321,13 +414,13 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
           )}
 
           {/* -------------------------------------------------------------
-              2. REAL-TIME AR FIRE GUIDANCE OVERLAY (INSIDE CAMERA VIEW)
+              2. REAL-TIME AR FIRE GUIDANCE & 4-GAS SNIFFER OVERLAY (INSIDE CAMERA VIEW)
               ------------------------------------------------------------- */}
-          <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 z-10">
+          <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-2.5 z-10">
             {/* Top HUD: Flame Gauge & Audio/Text Hindi Guidance Banner */}
-            <div className="space-y-2 pointer-events-auto">
+            <div className="space-y-1.5 pointer-events-auto">
               {/* Audio/Text Banner */}
-              <div className="bg-slate-950/85 backdrop-blur-md border border-amber-400/50 rounded-xl px-3 py-1.5 flex items-center justify-between text-amber-300 shadow-lg">
+              <div className="bg-slate-950/85 backdrop-blur-md border border-amber-400/50 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-amber-300 shadow-lg">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
                   <span className="text-[11px] font-bold truncate tracking-wide">
@@ -340,7 +433,7 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
               </div>
 
               {/* Flame Intensity Gauge */}
-              <div className="bg-slate-950/80 backdrop-blur-md border border-slate-700/80 rounded-xl px-3 py-2 space-y-1.5 shadow-md">
+              <div className="bg-slate-950/80 backdrop-blur-md border border-slate-700/80 rounded-xl px-2.5 py-1.5 space-y-1 shadow-md">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-bold text-slate-200 flex items-center gap-1.5">
                     <Flame className="w-3.5 h-3.5 text-amber-400" />
@@ -360,7 +453,7 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
                 </div>
 
                 {/* Progress Bar */}
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden border border-slate-700">
                   <div
                     className={`h-full transition-all duration-300 rounded-full ${
                       firePercentage > 50
@@ -373,17 +466,181 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
                   />
                 </div>
               </div>
+
+              {/* REAL-TIME 'GAS THRESHOLD' 4-GAS SNIFFER VISUALIZATION IN AR CAMERA VIEW */}
+              <div className="bg-slate-950/90 backdrop-blur-md border border-slate-700/90 rounded-xl p-2 space-y-1.5 shadow-xl">
+                {/* Sniffer Top Status Bar */}
+                <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <Activity className={`w-3.5 h-3.5 ${hasGasThresholdViolation ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`} />
+                    <span className="font-bold text-slate-200 tracking-wider uppercase text-[10px]">
+                      DGMS 4-Gas Sniffer
+                    </span>
+                    <span className="flex items-center gap-1 font-mono text-[9px] bg-slate-900 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                      0.5L/m
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {hasGasThresholdViolation ? (
+                      <span className="bg-red-500/20 text-red-300 border border-red-500/70 font-black text-[9px] px-1.5 py-0.5 rounded animate-pulse">
+                        ⚠️ THRESHOLD ALARM
+                      </span>
+                    ) : (
+                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/60 font-black text-[9px] px-1.5 py-0.5 rounded">
+                        ✓ ATMOSPHERE SAFE
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4-Gas Dynamic Sensor Grid: O2, CO, H2S, CH4 */}
+                <div className="grid grid-cols-4 gap-1 text-center font-mono">
+                  {/* 1. Oxygen (O2) */}
+                  <div
+                    className={`p-1 rounded-lg border flex flex-col justify-between transition-colors ${
+                      isO2Deficient
+                        ? 'bg-red-950/80 border-red-500 text-red-200'
+                        : 'bg-slate-900/80 border-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[9px] font-sans text-slate-400 font-bold px-0.5">
+                      <span>O₂</span>
+                      <span className="text-[8px] font-mono">&gt;19.5%</span>
+                    </div>
+                    <div className="text-xs font-black my-0.5 tracking-tight">
+                      {o2Percent.toFixed(1)}%
+                    </div>
+                    {/* Visual Threshold Bar */}
+                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isO2Deficient ? 'bg-red-500' : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${Math.min(100, (o2Percent / 22) * 100)}%` }}
+                      />
+                    </div>
+                    <div
+                      className={`text-[8px] font-bold mt-0.5 truncate uppercase ${
+                        isO2Deficient ? 'text-red-400 animate-pulse font-black' : 'text-emerald-400'
+                      }`}
+                    >
+                      {isO2Deficient ? 'DEFICIENT' : 'NORMAL'}
+                    </div>
+                  </div>
+
+                  {/* 2. Carbon Monoxide (CO) */}
+                  <div
+                    className={`p-1 rounded-lg border flex flex-col justify-between transition-colors ${
+                      isCoToxic
+                        ? 'bg-red-950/80 border-red-500 text-red-200'
+                        : 'bg-slate-900/80 border-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[9px] font-sans text-slate-400 font-bold px-0.5">
+                      <span>CO</span>
+                      <span className="text-[8px] font-mono">&lt;50ppm</span>
+                    </div>
+                    <div className="text-xs font-black my-0.5 tracking-tight">
+                      {Math.round(coPpm)} <span className="text-[8px] font-normal">ppm</span>
+                    </div>
+                    {/* Visual Threshold Bar */}
+                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isCoToxic ? 'bg-red-500' : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${Math.min(100, (coPpm / 400) * 100)}%` }}
+                      />
+                    </div>
+                    <div
+                      className={`text-[8px] font-bold mt-0.5 truncate uppercase ${
+                        isCoToxic ? 'text-red-400 animate-pulse font-black' : 'text-emerald-400'
+                      }`}
+                    >
+                      {isCoToxic ? 'TOXIC' : 'SAFE'}
+                    </div>
+                  </div>
+
+                  {/* 3. Hydrogen Sulfide (H2S) */}
+                  <div
+                    className={`p-1 rounded-lg border flex flex-col justify-between transition-colors ${
+                      isH2sLethal
+                        ? 'bg-red-950/80 border-red-500 text-red-200'
+                        : 'bg-slate-900/80 border-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[9px] font-sans text-slate-400 font-bold px-0.5">
+                      <span>H₂S</span>
+                      <span className="text-[8px] font-mono">&lt;10ppm</span>
+                    </div>
+                    <div className="text-xs font-black my-0.5 tracking-tight">
+                      {h2sPpm.toFixed(1)} <span className="text-[8px] font-normal">ppm</span>
+                    </div>
+                    {/* Visual Threshold Bar */}
+                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isH2sLethal ? 'bg-red-500' : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${Math.min(100, (h2sPpm / 20) * 100)}%` }}
+                      />
+                    </div>
+                    <div
+                      className={`text-[8px] font-bold mt-0.5 truncate uppercase ${
+                        isH2sLethal ? 'text-red-400 animate-pulse font-black' : 'text-emerald-400'
+                      }`}
+                    >
+                      {isH2sLethal ? 'LETHAL' : 'CLEAR'}
+                    </div>
+                  </div>
+
+                  {/* 4. Methane (CH4) */}
+                  <div
+                    className={`p-1 rounded-lg border flex flex-col justify-between transition-colors ${
+                      isCh4Hazard
+                        ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                        : 'bg-slate-900/80 border-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[9px] font-sans text-slate-400 font-bold px-0.5">
+                      <span>CH₄</span>
+                      <span className="text-[8px] font-mono">&lt;1.25%</span>
+                    </div>
+                    <div className="text-xs font-black my-0.5 tracking-tight">
+                      {ch4Percent.toFixed(2)}%
+                    </div>
+                    {/* Visual Threshold Bar */}
+                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isCh4Hazard ? 'bg-amber-500' : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${Math.min(100, (ch4Percent / 2.5) * 100)}%` }}
+                      />
+                    </div>
+                    <div
+                      className={`text-[8px] font-bold mt-0.5 truncate uppercase ${
+                        isCh4Hazard ? 'text-amber-400 font-black' : 'text-emerald-400'
+                      }`}
+                    >
+                      {isCh4Hazard ? 'LEL HIGH' : 'SAFE'}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Centered Simulated Animated Fire / Target Reticle */}
-            <div className="relative flex-1 flex items-center justify-center pointer-events-auto">
+            <div className="relative flex-1 flex items-center justify-center pointer-events-auto py-2">
               {firePercentage > 0 ? (
                 <div className="relative flex flex-col items-center">
                   {/* Smoke Particles */}
-                  <div className="absolute -top-8 flex gap-1.5 opacity-60">
-                    <span className="w-3 h-3 rounded-full bg-slate-300 blur-[2px] animate-pulse" />
-                    <span className="w-4 h-4 rounded-full bg-slate-400 blur-[2px] animate-pulse delay-75" />
-                    <span className="w-3 h-3 rounded-full bg-slate-300 blur-[2px] animate-pulse delay-150" />
+                  <div className="absolute -top-6 flex gap-1.5 opacity-60">
+                    <span className="w-2.5 h-2.5 rounded-full bg-slate-300 blur-[2px] animate-pulse" />
+                    <span className="w-3.5 h-3.5 rounded-full bg-slate-400 blur-[2px] animate-pulse delay-75" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-slate-300 blur-[2px] animate-pulse delay-150" />
                   </div>
 
                   {/* Scaled Flame Graphic */}
@@ -394,9 +651,9 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
                       transformOrigin: 'bottom center'
                     }}
                   >
-                    <Flame className="w-24 h-24 text-amber-500 fill-amber-500 animate-bounce drop-shadow-[0_0_15px_rgba(245,158,11,0.8)]" />
-                    <Flame className="w-16 h-16 text-red-600 fill-red-600 absolute bottom-0 -left-2 animate-pulse" />
-                    <Flame className="w-12 h-12 text-yellow-300 fill-yellow-300 absolute bottom-1 left-5" />
+                    <Flame className="w-20 h-20 text-amber-500 fill-amber-500 animate-bounce drop-shadow-[0_0_15px_rgba(245,158,11,0.8)]" />
+                    <Flame className="w-14 h-14 text-red-600 fill-red-600 absolute bottom-0 -left-2 animate-pulse" />
+                    <Flame className="w-10 h-10 text-yellow-300 fill-yellow-300 absolute bottom-1 left-4" />
                   </div>
 
                   {/* Aiming Reticle Button on Fire Base */}
@@ -422,7 +679,7 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
                     Fire Extinguished (0%)
                   </span>
                   <span className="text-[10px] text-emerald-100 font-medium">
-                    CO2 Blanket Smother Complete
+                    CO2 Blanket Smother Complete • Gas Levels Normal
                   </span>
                 </div>
               )}
@@ -617,22 +874,106 @@ export const ARDrillScreen: React.FC<ARDrillScreenProps> = ({
             </button>
           </div>
 
-          {/* Environmental Readouts Strip */}
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center font-mono text-xs">
-            <div className="bg-[#F8FAFC] p-2 rounded-xl border border-slate-200">
-              <div className="text-[10px] text-slate-500 font-sans">Ambient Temp</div>
-              <div className="font-bold text-slate-800">{ambientTemp}°C</div>
+          {/* 4-Gas Sniffer Environmental & Permissible Limit Telemetry Card */}
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-xs font-bold text-slate-800">4-Gas Atmospheric Sniffer Telemetry</span>
+              </div>
+              <button
+                onClick={handleBumpTest}
+                disabled={isBumpTesting}
+                className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg px-2 py-0.5 flex items-center gap-1 transition"
+                title="Run sensor calibration & bump check"
+              >
+                <RefreshCw className={`w-3 h-3 ${isBumpTesting ? 'animate-spin' : ''}`} />
+                <span>{isBumpTesting ? 'Testing...' : 'Bump Test'}</span>
+              </button>
             </div>
-            <div className="bg-[#F8FAFC] p-2 rounded-xl border border-slate-200">
-              <div className="text-[10px] text-slate-500 font-sans">CO Gas Level</div>
-              <div className={`font-bold ${coPpm > 100 ? 'text-red-600' : 'text-slate-800'}`}>
-                {coPpm} ppm
+
+            {/* 4-Gas Metric Strip with Regulatory Thresholds */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {/* O2 Cell */}
+              <div className={`p-2.5 rounded-xl border ${isO2Deficient ? 'bg-red-50 border-red-300' : 'bg-[#F8FAFC] border-slate-200'}`}>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-slate-700">Oxygen (O₂)</span>
+                  <span className="text-[9px] font-mono text-slate-500">Min 19.5%</span>
+                </div>
+                <div className={`text-base font-black font-mono my-0.5 ${isO2Deficient ? 'text-red-600' : 'text-slate-900'}`}>
+                  {o2Percent.toFixed(1)}%
+                </div>
+                <div className="flex items-center justify-between text-[9px]">
+                  <span className="text-slate-500">OSHA Safe</span>
+                  <span className={`font-bold ${isO2Deficient ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {isO2Deficient ? 'HYPOXIA' : 'NORMAL'}
+                  </span>
+                </div>
+              </div>
+
+              {/* CO Cell */}
+              <div className={`p-2.5 rounded-xl border ${isCoToxic ? 'bg-red-50 border-red-300' : 'bg-[#F8FAFC] border-slate-200'}`}>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-slate-700">Carbon Monoxide (CO)</span>
+                  <span className="text-[9px] font-mono text-slate-500">Max 50ppm</span>
+                </div>
+                <div className={`text-base font-black font-mono my-0.5 ${isCoToxic ? 'text-red-600' : 'text-slate-900'}`}>
+                  {Math.round(coPpm)} <span className="text-[10px] font-normal">ppm</span>
+                </div>
+                <div className="flex items-center justify-between text-[9px]">
+                  <span className="text-slate-500">TWA 25ppm</span>
+                  <span className={`font-bold ${isCoToxic ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {isCoToxic ? 'CRITICAL' : 'SAFE'}
+                  </span>
+                </div>
+              </div>
+
+              {/* H2S Cell */}
+              <div className={`p-2.5 rounded-xl border ${isH2sLethal ? 'bg-red-50 border-red-300' : 'bg-[#F8FAFC] border-slate-200'}`}>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-slate-700">Hydrogen Sulfide (H₂S)</span>
+                  <span className="text-[9px] font-mono text-slate-500">Max 10ppm</span>
+                </div>
+                <div className={`text-base font-black font-mono my-0.5 ${isH2sLethal ? 'text-red-600' : 'text-slate-900'}`}>
+                  {h2sPpm.toFixed(1)} <span className="text-[10px] font-normal">ppm</span>
+                </div>
+                <div className="flex items-center justify-between text-[9px]">
+                  <span className="text-slate-500">STEL 10ppm</span>
+                  <span className={`font-bold ${isH2sLethal ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {isH2sLethal ? 'TOXIC' : 'CLEAR'}
+                  </span>
+                </div>
+              </div>
+
+              {/* CH4 Cell */}
+              <div className={`p-2.5 rounded-xl border ${isCh4Hazard ? 'bg-amber-50 border-amber-300' : 'bg-[#F8FAFC] border-slate-200'}`}>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-slate-700">Methane (CH₄)</span>
+                  <span className="text-[9px] font-mono text-slate-500">Max 1.25%</span>
+                </div>
+                <div className={`text-base font-black font-mono my-0.5 ${isCh4Hazard ? 'text-amber-700' : 'text-slate-900'}`}>
+                  {ch4Percent.toFixed(2)}%
+                </div>
+                <div className="flex items-center justify-between text-[9px]">
+                  <span className="text-slate-500">DGMS Reg 139</span>
+                  <span className={`font-bold ${isCh4Hazard ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {isCh4Hazard ? 'WARN LEL' : 'SAFE'}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="bg-[#F8FAFC] p-2 rounded-xl border border-slate-200">
-              <div className="text-[10px] text-slate-500 font-sans">440V Breaker</div>
-              <div className={`font-bold ${powerIsolated ? 'text-emerald-700' : 'text-red-600'}`}>
-                {powerIsolated ? 'ISOLATED' : 'LIVE'}
+
+            {/* Environmental Baseline Strip */}
+            <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-xs">
+              <div className="bg-[#F8FAFC] p-2 rounded-xl border border-slate-200 flex items-center justify-between">
+                <span className="text-[10px] text-slate-500 font-sans">Ambient Temp</span>
+                <span className="font-bold text-slate-800">{ambientTemp}°C</span>
+              </div>
+              <div className="bg-[#F8FAFC] p-2 rounded-xl border border-slate-200 flex items-center justify-between">
+                <span className="text-[10px] text-slate-500 font-sans">440V Breaker</span>
+                <span className={`font-bold ${powerIsolated ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {powerIsolated ? 'ISOLATED' : 'LIVE'}
+                </span>
               </div>
             </div>
           </div>
