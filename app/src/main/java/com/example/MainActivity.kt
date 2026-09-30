@@ -100,39 +100,30 @@ fun MainAppContent(viewModel: SurakshaViewModel) {
                     )
 
                     NavigationBarItem(
-                        selected = currentTab == AppTab.ASSESSMENT,
-                        onClick = { viewModel.setTab(AppTab.ASSESSMENT) },
-                        icon = { Icon(Icons.Default.Psychology, contentDescription = "Remediation Engine") },
-                        label = { Text("Engine", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        selected = currentTab == AppTab.AR_SIMULATOR,
+                        onClick = { viewModel.setTab(AppTab.AR_SIMULATOR) },
+                        icon = { Icon(Icons.Default.ViewInAr, contentDescription = "Drill") },
+                        label = { Text("Drill", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = navItemColors,
-                        modifier = Modifier.testTag("nav_tab_assessment")
+                        modifier = Modifier.testTag("nav_tab_drill")
                     )
 
                     NavigationBarItem(
-                        selected = currentTab == AppTab.AR_SIMULATOR,
-                        onClick = { viewModel.setTab(AppTab.AR_SIMULATOR) },
-                        icon = { Icon(Icons.Default.ViewInAr, contentDescription = "AR Simulator") },
-                        label = { Text("AR Drill", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        selected = currentTab == AppTab.ASSESSMENT,
+                        onClick = { viewModel.setTab(AppTab.ASSESSMENT) },
+                        icon = { Icon(Icons.Default.Psychology, contentDescription = "My Results") },
+                        label = { Text("My Results", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = navItemColors,
-                        modifier = Modifier.testTag("nav_tab_ar_simulator")
+                        modifier = Modifier.testTag("nav_tab_results")
                     )
 
                     NavigationBarItem(
                         selected = currentTab == AppTab.COMPLIANCE_LOGS,
                         onClick = { viewModel.setTab(AppTab.COMPLIANCE_LOGS) },
-                        icon = { Icon(Icons.Default.AssignmentTurnedIn, contentDescription = "Compliance Logs") },
-                        label = { Text("Logs", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        icon = { Icon(Icons.Default.AssignmentTurnedIn, contentDescription = "Offline Sync") },
+                        label = { Text("Offline Sync", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = navItemColors,
-                        modifier = Modifier.testTag("nav_tab_compliance_logs")
-                    )
-
-                    NavigationBarItem(
-                        selected = currentTab == AppTab.WORKER_ROSTER,
-                        onClick = { viewModel.setTab(AppTab.WORKER_ROSTER) },
-                        icon = { Icon(Icons.Default.Engineering, contentDescription = "Worker Roster") },
-                        label = { Text("Roster", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                        colors = navItemColors,
-                        modifier = Modifier.testTag("nav_tab_worker_roster")
+                        modifier = Modifier.testTag("nav_tab_sync")
                     )
                 }
             }

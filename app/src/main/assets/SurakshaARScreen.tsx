@@ -1,364 +1,301 @@
 import React, { useState } from 'react';
 import { 
   AlertTriangle, 
-  CheckCircle2, 
   XCircle, 
   Play, 
   Volume2, 
-  ArrowLeftRight, 
+  ArrowRight, 
   User, 
   BadgeCheck, 
   HardHat, 
   QrCode, 
-  RotateCw, 
   Smartphone, 
-  BrainCircuit, 
-  Activity, 
-  ClipboardList, 
-  Users 
+  Sync, 
+  RefreshCw, 
+  ClipboardCheck, 
+  CheckCircle2, 
+  FileText, 
+  ArrowLeftRight 
 } from 'lucide-react';
 
-interface Scenario {
-  id: string;
-  title: string;
-  workerName: string;
-  workerId: string;
-  trade: string;
-  standard: string;
-  mode: 'AR_MODE' | '2D_FALLBACK_MODE';
-  eventCount: number;
-}
-
-const PREDEFINED_SCENARIOS: Scenario[] = [
-  {
-    id: 'DR-FIRE-2026-05',
-    title: 'Mine Fire (Blocked Exit Fail)',
-    workerName: 'Rajesh Gope',
-    workerId: 'WKR-4491',
-    trade: 'Haulage Attendant',
-    standard: 'DGMS CMR 2017 & OSHA 1910',
-    mode: '2D_FALLBACK_MODE',
-    eventCount: 7
-  },
-  {
-    id: 'DR-CS-2026-01',
-    title: 'Confined Sump (Fail)',
-    workerName: 'Sunil Soren',
-    workerId: 'WKR-3108',
-    trade: 'Pump Operator',
-    standard: 'OSHA 1910.146 Confined Space',
-    mode: 'AR_MODE',
-    eventCount: 6
-  },
-  {
-    id: 'DR-CS-SAFE-06',
-    title: 'Confined Sump (Safe Escalation Pass)',
-    workerName: 'Ramesh Kisku',
-    workerId: 'WKR-5520',
-    trade: 'Ventilation Attendant',
-    standard: 'DGMS Standard Reg 139',
-    mode: 'AR_MODE',
-    eventCount: 8
-  }
-];
-
 export const SurakshaARScreen: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'engine' | 'ar_drill' | 'logs' | 'roster'>('engine');
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>('DR-FIRE-2026-05');
-  const [activeMode, setActiveMode] = useState<'AR_MODE' | '2D_FALLBACK_MODE'>('2D_FALLBACK_MODE');
-  const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
-  const [hasEvaluated, setHasEvaluated] = useState<boolean>(true);
-  const [selectedLanguage, setSelectedLanguage] = useState<'hindi' | 'santali' | 'english'>('hindi');
+  // Navigation: 3 Essential Tabs Only: [Drill, My Results, Offline Sync]
+  const [activeTab, setActiveTab] = useState<'drill' | 'results' | 'sync'>('results');
+  
+  // Language Switch: Hindi | Santali
+  const [selectedLang, setSelectedLang] = useState<'hindi' | 'santali'>('hindi');
+  
+  // Mode: 2D Fallback Mode vs AR Mode
+  const [executionMode, setExecutionMode] = useState<'2D_MODE' | 'AR_MODE'>('2D_MODE');
+  
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
-  const currentScenario = PREDEFINED_SCENARIOS.find(s => s.id === selectedScenarioId) || PREDEFINED_SCENARIOS[0];
-
-  const handleToggleMode = () => {
-    setActiveMode(prev => prev === 'AR_MODE' ? '2D_FALLBACK_MODE' : 'AR_MODE');
+  const toggleLanguage = (lang: 'hindi' | 'santali') => {
+    setSelectedLang(lang);
   };
 
-  const handleEvaluate = () => {
-    setIsEvaluating(true);
-    setTimeout(() => {
-      setIsEvaluating(false);
-      setHasEvaluated(true);
-    }, 500);
+  const handlePlayAudio = () => {
+    setIsPlayingAudio(true);
+    setTimeout(() => setIsPlayingAudio(false), 2000);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans antialiased max-w-md mx-auto relative shadow-2xl">
-      {/* Root Container Padding: px-4 pt-3 pb-24 space-y-3 */}
-      <main className="flex-1 px-4 pt-3 pb-24 space-y-3 overflow-y-auto">
+    <div className="flex flex-col min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans antialiased max-w-md mx-auto relative shadow-2xl pb-20">
+      
+      {/* ======================================================== */}
+      {/* MAIN STREAMLINED CONTENT                                 */}
+      {/* ======================================================== */}
+      <main className="flex-1 px-4 pt-3 pb-6 space-y-3 overflow-y-auto">
         
-        {/* TOP HEADER & COMPLIANCE BADGES */}
-        <header className="w-full box-border p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 border border-amber-200">
-            <AlertTriangle className="w-6 h-6 text-amber-700" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-              <h1 className="text-base font-black text-slate-900 leading-tight">SurakshaAR</h1>
-              <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded border border-amber-300 whitespace-nowrap">
-                SIH 2026
-              </span>
-              <span className="bg-sky-100 text-sky-800 text-[10px] font-bold px-1.5 py-0.5 rounded border border-sky-200 whitespace-nowrap">
-                DGMS & OSHA
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 font-medium leading-relaxed">
-              Safety Remediation & Assessment Engine
-            </p>
-            <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1.5 text-[10px] text-slate-500 font-semibold">
-              <span className="truncate">Platform: Android 11 ({activeMode === 'AR_MODE' ? 'AR Core' : '2D Fallback'})</span>
-              <span className="text-amber-700 flex items-center gap-1 shrink-0 ml-1">
-                <RotateCw className="w-2.5 h-2.5" /> 0 pending
-              </span>
-            </div>
-          </div>
-        </header>
-
-        {/* 3. SCENARIO SELECTOR PILLS (DEDICATED HORIZONTAL SCROLL CONTAINER) */}
-        <section className="space-y-1.5">
-          <div className="text-[11px] font-bold tracking-wider text-slate-500 uppercase px-0.5">
-            Select Drill Telemetry Scenario:
-          </div>
-          {/* Dedicated scroll container: flex flex-row overflow-x-auto gap-2 no-scrollbar py-1 w-full */}
-          <div className="flex flex-row overflow-x-auto gap-2 no-scrollbar py-1 w-full">
-            {PREDEFINED_SCENARIOS.map(drill => {
-              const isSelected = drill.id === selectedScenarioId;
-              return (
-                <button
-                  key={drill.id}
-                  onClick={() => setSelectedScenarioId(drill.id)}
-                  className={`flex-shrink-0 whitespace-nowrap px-4 py-2 text-xs font-medium rounded-full transition-all flex items-center ${
-                    isSelected
-                      ? 'bg-amber-100 text-amber-900 border border-amber-400 shadow-xs font-bold'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {drill.title}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* 2. SCENARIO HEADER & "SWITCH AR" BUTTON */}
-        <section className="w-full box-border p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
-          {/* Top row: flex flex-row justify-between items-center w-full gap-2 */}
-          <div className="flex flex-row justify-between items-center w-full gap-2">
-            <h2 className="flex-1 min-w-0 text-sm font-bold text-slate-900 leading-tight truncate">
-              {currentScenario.title}
-            </h2>
-            <button
-              onClick={handleToggleMode}
-              className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold whitespace-nowrap bg-white text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5 transition shadow-2xs"
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-amber-600" />
-              <span>{activeMode === 'AR_MODE' ? 'Switch 2D' : 'Switch AR'}</span>
-            </button>
-          </div>
-
-          {/* Structured 2-Column Worker Metadata */}
-          <div className="bg-[#F8FAFC] rounded-xl p-3 border border-slate-200 grid grid-cols-2 gap-2 text-xs">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="truncate">{currentScenario.workerName}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-slate-600 font-mono text-[11px]">
-                <HardHat className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>ID: {currentScenario.workerId}</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                <HardHat className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="truncate">{currentScenario.trade}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-sky-700 font-medium text-[10px]">
-                <BadgeCheck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                <span className="truncate">{currentScenario.standard}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Neatly Centered Full-Width Mode Tag */}
-          <div className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border ${
-            activeMode === 'AR_MODE' 
-              ? 'bg-sky-50 text-sky-800 border-sky-300' 
-              : 'bg-amber-50 text-amber-800 border-amber-300'
-          }`}>
-            <Smartphone className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">
-              {activeMode === 'AR_MODE' ? 'AR_MODE (Spatial Sensor HUD Enabled)' : '2D_FALLBACK_MODE (Interactive Decision Canvas)'}
+        {/* 1. HEADER (App Title + DGMS/OSHA Badge + Language Switch Pill + Audio) */}
+        <header className="flex items-center justify-between gap-2 pt-1 pb-0.5">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-black tracking-tight text-slate-900">
+              SurakshaAR
+            </h1>
+            <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+              DGMS & OSHA
             </span>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
-            <span>Recorded Physical Events: {currentScenario.eventCount}</span>
-            <span className="text-slate-400">DGMS Rule 1 Enforced</span>
-          </div>
-        </section>
-
-        {/* 4. PRIMARY CTA ("EVALUATE TELEMETRY LOGS") - w-full h-12 rounded-xl flex items-center justify-center gap-2 font-bold */}
-        <button
-          onClick={handleEvaluate}
-          disabled={isEvaluating}
-          className="w-full h-12 rounded-xl flex items-center justify-center gap-2 font-bold bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-slate-950 text-sm tracking-wide shadow-md transition"
-        >
-          {isEvaluating ? (
-            <RotateCw className="w-5 h-5 animate-spin text-slate-900" />
-          ) : (
-            <>
-              <Play className="w-4 h-4 fill-slate-950 shrink-0" />
-              <span className="whitespace-nowrap">EVALUATE TELEMETRY LOGS</span>
-            </>
-          )}
-        </button>
-
-        {/* 1. EVALUATION SUMMARY BADGES (FIX VERTICAL TEXT COLLAPSE IN RISK BADGE) */}
-        {hasEvaluated && (
-          <section className="w-full box-border p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3.5">
-            {/* Non-shrinking, strictly horizontal row without vertical letter-by-letter collapse */}
-            <div className="flex flex-row overflow-x-auto gap-2 no-scrollbar py-1 w-full items-center">
-              {/* Col 1: [⚠ VERDICT: FAIL] (Red solid/subtle background) */}
-              <div className="flex-shrink-0 whitespace-nowrap bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-xl font-bold text-xs flex flex-row items-center justify-center gap-1.5 shadow-2xs">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                <span className="whitespace-nowrap">VERDICT: FAIL</span>
-              </div>
-
-              {/* Col 2: [✖ NOT_MASTERED] (Slate background) */}
-              <div className="flex-shrink-0 whitespace-nowrap bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-xl font-bold text-xs flex flex-row items-center justify-center gap-1.5 shadow-2xs">
-                <XCircle className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                <span className="whitespace-nowrap">NOT_MASTERED</span>
-              </div>
-
-              {/* Col 3: [● RISK: CRITICAL] (High-contrast red border/pill) */}
-              <div className="flex-shrink-0 whitespace-nowrap bg-red-50 text-red-700 border border-red-300 px-3 py-1.5 rounded-xl font-bold text-xs flex flex-row items-center justify-center gap-1.5 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse shrink-0" />
-                <span className="whitespace-nowrap">RISK: CRITICAL</span>
-              </div>
-            </div>
-
-            {/* Score & Mastery Row */}
-            <div className="flex items-center justify-between py-2 border-y border-slate-100">
-              <div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Competency Score
-                </div>
-                <div className="text-2xl font-black font-mono text-red-600">
-                  42 <span className="text-xs text-slate-400 font-sans">/ 100</span>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Compliance Rule
-                </div>
-                <div className="text-xs font-bold text-slate-800">
-                  DGMS CMR 2017 Reg 139
-                </div>
-              </div>
-            </div>
-
-            {/* Critical Override Notice */}
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-left space-y-1">
-              <div className="flex items-center gap-1.5 font-black text-xs text-red-700">
-                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                <span>CRITICAL SAFETY OVERRIDE ACTIVE</span>
-              </div>
-              <p className="text-xs text-slate-700 leading-normal">
-                Panicked and rushed into North Conveyor Drift marked <strong>BLOCKED EXIT</strong> with CO &gt; 380 ppm. Mandatory instant FAIL enforced regardless of speed.
-              </p>
-            </div>
-
-            {/* Verifiable Certificate Banner */}
-            <div className="bg-white rounded-xl p-3 border border-amber-300 bg-amber-50/40 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0">
-                  <QrCode className="w-5 h-5" />
-                </div>
-                <div className="text-left min-w-0">
-                  <div className="text-[10px] font-black text-amber-800 tracking-wider">PROVISIONAL RECORD</div>
-                  <div className="text-xs font-mono font-bold text-slate-800 truncate">CERT-2026-WKR4491-05</div>
-                </div>
-              </div>
-              <button className="flex-shrink-0 px-2.5 py-1 text-xs font-bold text-amber-900 bg-amber-200 border border-amber-300 rounded-lg hover:bg-amber-300">
-                View QR
+          <div className="flex items-center gap-1.5">
+            {/* Language Switch Pill: [हिंदी | ᱥᱟᱱᱛᱟᱲᱤ] */}
+            <div className="bg-white border border-slate-200 rounded-full p-0.5 flex items-center shadow-xs">
+              <button
+                onClick={() => toggleLanguage('hindi')}
+                className={`px-2.5 py-1 text-xs rounded-full font-bold transition-colors ${
+                  selectedLang === 'hindi'
+                    ? 'bg-amber-100 text-amber-900 font-extrabold shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                हिंदी
+              </button>
+              <button
+                onClick={() => toggleLanguage('santali')}
+                className={`px-2.5 py-1 text-xs rounded-full font-bold transition-colors ${
+                  selectedLang === 'santali'
+                    ? 'bg-amber-100 text-amber-900 font-extrabold shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ᱥᱟᱱᱛᱟᱲᱤ
               </button>
             </div>
 
-            {/* Plain-Language Worker Feedback & Audio Guidance */}
-            <div className="space-y-2 text-left">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-bold text-slate-800">Multilingual Worker Feedback</div>
-                <button className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-100 rounded-md border border-amber-300">
-                  <Volume2 className="w-3.5 h-3.5" />
-                  <span>Listen Audio</span>
-                </button>
-              </div>
-
-              {/* Language Selector */}
-              <div className="flex border-b border-slate-200 text-xs font-bold">
-                <button 
-                  onClick={() => setSelectedLanguage('hindi')}
-                  className={`py-1.5 px-3 border-b-2 ${selectedLanguage === 'hindi' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-500'}`}
-                >
-                  हिंदी (Devanagari)
-                </button>
-                <button 
-                  onClick={() => setSelectedLanguage('santali')}
-                  className={`py-1.5 px-3 border-b-2 ${selectedLanguage === 'santali' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-500'}`}
-                >
-                  ᱥᱟᱱᱛᱟᱲᱤ (Santali)
-                </button>
-                <button 
-                  onClick={() => setSelectedLanguage('english')}
-                  className={`py-1.5 px-3 border-b-2 ${selectedLanguage === 'english' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-500'}`}
-                >
-                  English
-                </button>
-              </div>
-
-              <div className="p-3 bg-[#F8FAFC] rounded-lg border border-slate-200 text-sm leading-relaxed text-slate-800 font-medium">
-                {selectedLanguage === 'hindi' && (
-                  "राजेश, आग लगने पर कभी भी ब्लॉक किए गए रास्ते (Exit A) की ओर मत भागो! पहले अलार्म बजाओ और लाइफ़लाइन का पालन करते हुए सुरक्षित निकास B की ओर निकलो।"
-                )}
-                {selectedLanguage === 'santali' && (
-                  "ᱨᱟᱡᱮᱥ, ᱥᱮᱸᱜᱮᱞ ᱞᱟᱜᱟᱣ ᱚᱠᱛᱚ ᱨᱮ ᱵᱚᱸᱫᱽ ᱟᱠᱟᱱ ᱰᱟᱦᱟᱨ ᱥᱮᱫ ᱟᱞᱚᱢ ᱫᱟᱹᱲᱟ! ᱞᱟᱭᱤᱯᱷᱞᱟᱭᱤᱱ ᱯᱟᱸᱡᱟ ᱠᱟᱛᱮ Exit B ᱥᱮᱫ ᱪᱟᱞᱟᱜ ᱢᱮ᱾"
-                )}
-                {selectedLanguage === 'english' && (
-                  "Rajesh, never run towards an exit marked BLOCKED during an emergency. Raise the alarm first and follow the intake lifeline towards safe Exit B."
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-      </main>
-
-      {/* 5. BOTTOM NAVIGATION BAR - fixed bottom-0 left-0 right-0 h-16 grid grid-cols-4 items-center bg-white border-t border-slate-200 */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto h-16 grid grid-cols-4 items-center bg-white border-t border-slate-200 shadow-lg z-50">
-        {[
-          { id: 'engine', label: 'Engine', icon: BrainCircuit },
-          { id: 'ar_drill', label: 'AR Drill', icon: Activity },
-          { id: 'logs', label: 'Logs', icon: ClipboardList },
-          { id: 'roster', label: 'Roster', icon: Users },
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
+            {/* Quick Audio Play Button */}
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex flex-col items-center justify-center gap-1 w-full h-full min-h-[48px] min-w-[48px] transition ${
-                isActive ? 'text-amber-700 font-bold' : 'text-slate-400 hover:text-slate-600'
+              onClick={handlePlayAudio}
+              title="Play Voice Guidance"
+              className={`w-8 h-8 rounded-full border border-amber-300 bg-amber-100 flex items-center justify-center text-amber-900 hover:bg-amber-200 transition ${
+                isPlayingAudio ? 'ring-2 ring-amber-500 scale-95' : ''
               }`}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[11px] leading-none font-medium">{tab.label}</span>
+              <Volume2 className="w-4 h-4" />
             </button>
-          );
-        })}
+          </div>
+        </header>
+
+        {/* 2. ACTIVE MODULE CARD (Pure White #FFFFFF, 1px Border #E2E8F0, rounded-2xl) */}
+        <section className="w-full bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-sm space-y-3">
+          {/* Module Title & Mode Switch Button */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-0.5 min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                ACTIVE SAFETY DRILL
+              </span>
+              <h2 className="text-sm font-bold text-slate-900 leading-snug">
+                Gas Leak & Confined Space Entry Lab
+              </h2>
+            </div>
+
+            <button
+              onClick={() => setExecutionMode(prev => prev === '2D_MODE' ? 'AR_MODE' : '2D_MODE')}
+              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition shadow-2xs"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-amber-600" />
+              <span>{executionMode === '2D_MODE' ? 'Switch to AR' : 'Switch to 2D'}</span>
+            </button>
+          </div>
+
+          {/* Mode Pill */}
+          <div className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
+              <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+              <span>
+                {executionMode === '2D_MODE'
+                  ? '2D Fallback Mode (Android 11)'
+                  : 'Spatial AR Mode (IMU / HUD)'}
+              </span>
+            </div>
+            <span className="text-[10px] font-medium text-slate-400">DGMS Standard Reg 139</span>
+          </div>
+
+          {/* Worker Details */}
+          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+            <div className="flex items-center gap-1.5 text-slate-900 font-bold">
+              <User className="w-3.5 h-3.5 text-slate-500" />
+              <span>Rajesh Gope (ID: WKR-4491)</span>
+            </div>
+            <span className="text-slate-600 font-medium">Trade: Pump Operator</span>
+          </div>
+        </section>
+
+        {/* 3. PRIMARY BIG BUTTON ("▶ START SAFETY DRILL" - Full width, 52px, amber-500) */}
+        <button
+          onClick={() => setActiveTab('drill')}
+          className="w-full h-[52px] min-h-[52px] rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-slate-950 font-black text-sm tracking-wide shadow-md flex items-center justify-center gap-2 transition"
+        >
+          <Play className="w-4 h-4 fill-slate-950" />
+          <span>START SAFETY DRILL</span>
+        </button>
+
+        {/* 4. CLEAR EVALUATION SUMMARY CARD (HORIZONTAL ALIGNMENT, NO WRAPPING BUGS) */}
+        <section className="w-full bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              LAST EVALUATION SUMMARY
+            </span>
+            <span className="bg-red-50 text-red-700 border border-red-200 text-xs font-black px-2 py-0.5 rounded-md">
+              Score: 42/100
+            </span>
+          </div>
+
+          {/* Clean Horizontal Status Badges Row (Zero letter-by-letter wrapping) */}
+          <div className="grid grid-cols-3 gap-2 w-full items-center">
+            {/* Pill 1: [ ⚠ VERDICT: FAIL ] */}
+            <div className="bg-[#FEE2E2] text-red-700 border border-red-200 px-2 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1 whitespace-nowrap shadow-2xs">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+              <span>VERDICT: FAIL</span>
+            </div>
+
+            {/* Pill 2: [ ✖ NOT MASTERED ] */}
+            <div className="bg-slate-100 text-slate-700 border border-slate-300 px-2 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1 whitespace-nowrap">
+              <XCircle className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+              <span>NOT MASTERED</span>
+            </div>
+
+            {/* Pill 3: [ CRITICAL ERROR: Gas Test Skipped ] */}
+            <div className="bg-red-50 text-red-700 border border-red-200 px-1.5 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center text-center whitespace-nowrap truncate">
+              <span>CRITICAL: Gas Test Skipped</span>
+            </div>
+          </div>
+
+          {/* Plain-Language Worker Feedback & Audio */}
+          <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-3 space-y-1 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800">
+                Worker Guidance ({selectedLang === 'hindi' ? 'हिंदी' : 'ᱥᱟᱱᱛᱟᱲᱤ'}):
+              </span>
+              <button
+                onClick={handlePlayAudio}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-amber-900 bg-amber-100 rounded border border-amber-300"
+              >
+                <Volume2 className="w-3 h-3" />
+                <span>Listen</span>
+              </button>
+            </div>
+            <p className="text-xs text-slate-700 leading-relaxed font-medium">
+              {selectedLang === 'hindi'
+                ? "राजेश, बिना 4-गैस स्निफ़र टेस्ट के सम्प में मत उतरो! पहले O2, H2S और CH4 चेक करो और परमिट साइन कराओ।"
+                : "ᱨᱟᱡᱮᱥ, ᱜᱮᱥ ᱴᱮᱥᱴ ᱵᱤᱱᱟ ᱛᱮ ᱥᱟᱢᱯ ᱨᱮ ᱟᱞᱚᱢ ᱯᱷᱮᱰᱚᱜ-ᱟ! ᱞᱟᱦᱟ ᱛᱮ O2 ᱟᱨ H2S ᱪᱮᱠ ᱢᱮ᱾"}
+            </p>
+          </div>
+        </section>
+
+        {/* 5. REMEDIATION CARD */}
+        <section className="w-full bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-sm flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+              <RefreshCw className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-amber-800 uppercase block">
+                Required Action:
+              </span>
+              <h3 className="text-xs font-bold text-slate-900 truncate">
+                Complete 3-Minute Gas Detector Drill
+              </h3>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setActiveTab('drill')}
+            className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-lg shadow-xs transition"
+          >
+            <span>Retry Drill</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </section>
+
+        {/* 6. OFFLINE STATUS & VERIFIABLE QR CARD */}
+        <section className="w-full bg-white rounded-2xl border border-[#E2E8F0] p-3.5 shadow-sm flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+              <QrCode className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 truncate">
+                Provisional Offline Receipt
+              </div>
+              <div className="text-[10px] font-medium text-slate-500">
+                Status: <span className="text-amber-700 font-bold">Sync Pending (1 record)</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => alert("Cryptographic Certificate: CERT-2026-WKR4491-05 verified by DGMS offline key.")}
+            className="shrink-0 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+          >
+            View QR
+          </button>
+        </section>
+
+      </main>
+
+      {/* ======================================================== */}
+      {/* 4. CLEAN BOTTOM NAVIGATION (3 ESSENTIAL TABS ONLY)        */}
+      {/* ======================================================== */}
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto h-16 bg-white border-t border-[#E2E8F0] shadow-lg z-50">
+        <div className="grid grid-cols-3 h-full items-center">
+          
+          {/* Tab 1: Drill */}
+          <button
+            onClick={() => setActiveTab('drill')}
+            className={`flex flex-col items-center justify-center gap-1 w-full h-full min-h-[48px] transition ${
+              activeTab === 'drill' ? 'text-amber-700 font-bold' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Smartphone className="w-5 h-5" />
+            <span className="text-xs leading-none">Drill</span>
+          </button>
+
+          {/* Tab 2: My Results */}
+          <button
+            onClick={() => setActiveTab('results')}
+            className={`flex flex-col items-center justify-center gap-1 w-full h-full min-h-[48px] transition ${
+              activeTab === 'results' ? 'text-amber-700 font-bold' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <ClipboardCheck className="w-5 h-5" />
+            <span className="text-xs leading-none">My Results</span>
+          </button>
+
+          {/* Tab 3: Offline Sync */}
+          <button
+            onClick={() => setActiveTab('sync')}
+            className={`flex flex-col items-center justify-center gap-1 w-full h-full min-h-[48px] transition ${
+              activeTab === 'sync' ? 'text-amber-700 font-bold' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Sync className="w-5 h-5" />
+            <span className="text-xs leading-none">Offline Sync</span>
+          </button>
+
+        </div>
       </nav>
+
     </div>
   );
 };
