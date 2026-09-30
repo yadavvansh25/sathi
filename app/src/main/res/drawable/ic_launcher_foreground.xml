@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- AR Targeting Shield Hexagon Outline -->
+    <path
+        android:fillColor="#15F59E0B"
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="1.8"
+        android:pathData="M54,26 L76,38 L76,64 L54,78 L32,64 L32,38 Z" />
+
+    <!-- Corner Reticles for AR HUD -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000"
+        android:pathData="M30,32 L36,32 M30,32 L30,38" />
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000"
+        android:pathData="M78,32 L72,32 M78,32 L78,38" />
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000"
+        android:pathData="M30,72 L36,72 M30,72 L30,66" />
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000"
+        android:pathData="M78,72 L72,72 M78,72 L78,66" />
+
+    <!-- Mining Safety Hard Hat Dome -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M40,51 C40,43 46,36 54,36 C62,36 68,43 68,51 L40,51 Z" />
+
+    <!-- Hard Hat Ridge (Center Crown) -->
+    <path
+        android:fillColor="#D97706"
+        android:pathData="M52,36 L56,36 L56,51 L52,51 Z" />
+
+    <!-- Mining Cap Lamp Bracket -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M51,43 L57,43 L57,47 L51,47 Z" />
+    <!-- Mining Cap Lamp Beam -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M52,44 L56,44 L56,46 L52,46 Z" />
+
+    <!-- Hard Hat Brim -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M37,50 L71,50 C72,50 73,51 73,52 C73,53 71,54 70,54 L38,54 C37,54 35,53 35,52 C35,51 36,50 37,50 Z" />
+
+    <!-- AR Smart Visor / Cross-Check Sensor -->
+    <path
+        android:fillColor="#2238BDF8"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="1.2"
+        android:pathData="M42,55 L66,55 C67,55 67.5,56 67,57 L64,62 C63.5,63 62.5,63 61.5,63 L46.5,63 C45.5,63 44.5,63 44,62 L41,57 C40.5,56 41,55 42,55 Z" />
+
+    <!-- Safety Checkmark in Visor -->
+    <path
+        android:strokeColor="#10B981"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M48,59 L52,62 L60,57" />
+
+</vector>

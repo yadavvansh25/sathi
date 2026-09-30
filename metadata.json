@@ -1,0 +1,6 @@
+{
+  "name": "SurakshaAR",
+  "description": "DGMS & OSHA safety remediation and assessment engine evaluating AR simulation logs for mining and factory workers with Hindi and Santali re-drill compliance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
