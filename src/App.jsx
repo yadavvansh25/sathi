@@ -3,7 +3,8 @@ import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 // ============================================================================
-// SurakshaAR: Real-Time AI Computer Vision & Fire Chromatic Analysis Engine
+// SurakshaAR: Real-Time AI Computer Vision & Dual-Format Guidance Engine
+// (TensorFlow.js + Chromatic Flame Analysis + Native Web Speech Synthesis)
 // ============================================================================
 
 const ELECTRICAL_CLASSES = new Set([
@@ -34,6 +35,12 @@ export default function App() {
   const [hazardResolved, setHazardResolved] = useState(false);
   const [completedActions, setCompletedActions] = useState([]);
 
+  // Voice Guidance State & Web Speech Synthesis
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentSubtitle, setCurrentSubtitle] = useState('');
+  const [availableVoices, setAvailableVoices] = useState([]);
+
   // Hardware and Canvas References
   const videoRef = useRef(null);
   const overlayCanvasRef = useRef(null);
@@ -43,13 +50,130 @@ export default function App() {
   const animFrameIdRef = useRef(null);
   const lastInferenceTimeRef = useRef(0);
 
-  // 1. ASYNCHRONOUS TENSORFLOW COCO-SSD INITIALIZATION
+  // Speech debouncing & cooldown references
+  const lastSpokenTypeRef = useRef(null);
+  const lastSpokenTimeRef = useRef(0);
+  const utteranceRef = useRef(null);
+
+  // 1. POPULATE & MONITOR SYSTEM TTS VOICES (OFFLINE & NATIVE)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    const updateVoices = () => {
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+          setAvailableVoices(voices);
+        }
+      } catch (err) {
+        console.warn('Voice enumeration warning:', err);
+      }
+    };
+
+    updateVoices();
+    window.speechSynthesis.onvoiceschanged = updateVoices;
+
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
+
+  // Preferred Voice Picker: Searches for Hindi (hi-IN) or Indian English (en-IN)
+  const getPreferredVoice = useCallback((voices) => {
+    if (!voices || voices.length === 0) return null;
+    // 1. Look for Hindi voices
+    const hiVoice = voices.find((v) => v.lang === 'hi-IN' || v.lang.toLowerCase().startsWith('hi'));
+    if (hiVoice) return hiVoice;
+    // 2. Look for Indian English voices
+    const enInVoice = voices.find((v) => v.lang === 'en-IN' || v.name.toLowerCase().includes('india'));
+    if (enInVoice) return enInVoice;
+    // 3. Fallback to default or any English voice
+    const defaultVoice = voices.find((v) => v.default);
+    if (defaultVoice) return defaultVoice;
+    const enVoice = voices.find((v) => v.lang.toLowerCase().startsWith('en'));
+    if (enVoice) return enVoice;
+    return voices[0] || null;
+  }, []);
+
+  // Safe Native Speech Synthesis Dispatcher with Cooldown & Debounce
+  const speakGuidance = useCallback((text, stateType, force = false) => {
+    if (!text || isMuted || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      return;
+    }
+
+    const now = Date.now();
+    const COOLDOWN_MS = 4500;
+    const isSameType = lastSpokenTypeRef.current === stateType;
+
+    // Cooldown check: if same hazard type and cooldown hasn't elapsed, skip to prevent stutter
+    if (!force && isSameType && (now - lastSpokenTimeRef.current < COOLDOWN_MS)) {
+      return;
+    }
+
+    try {
+      // Cancel previous speech immediately to give precedence to fresh emergency instruction
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      const voices = availableVoices.length > 0 ? availableVoices : window.speechSynthesis.getVoices();
+      const voice = getPreferredVoice(voices);
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang || 'hi-IN';
+      } else {
+        utterance.lang = 'hi-IN';
+      }
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        setCurrentSubtitle(text);
+        lastSpokenTimeRef.current = Date.now();
+        lastSpokenTypeRef.current = stateType;
+      };
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+
+      utterance.onerror = (e) => {
+        if (e.error !== 'interrupted') {
+          console.warn('SpeechSynthesis error:', e.error);
+        }
+        setIsSpeaking(false);
+      };
+
+      utteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn('Speech synthesis invocation failed:', err);
+      setIsSpeaking(false);
+    }
+  }, [isMuted, availableVoices, getPreferredVoice]);
+
+  // Toggle Mute Audio Controller
+  const toggleMute = () => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (next && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+      }
+      return next;
+    });
+  };
+
+  // 2. ASYNCHRONOUS TENSORFLOW COCO-SSD INITIALIZATION
   useEffect(() => {
     let isMounted = true;
     const initModel = async () => {
       try {
         setModelLoading(true);
-        // Ensure tf backend is ready (WebGL or CPU fallback)
         await tf.ready();
         const loaded = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
         if (isMounted) {
@@ -81,8 +205,15 @@ export default function App() {
     };
   }, []);
 
-  // 2. STOP CAMERA & CLEANUP STREAM TRACKS
+  // 3. STOP CAMERA & CLEANUP MEDIA STREAM AND AUDIO
   const stopCamera = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    setCurrentSubtitle('');
+    lastSpokenTypeRef.current = null;
+
     if (animFrameIdRef.current) {
       cancelAnimationFrame(animFrameIdRef.current);
       animFrameIdRef.current = null;
@@ -106,12 +237,14 @@ export default function App() {
     setPrimaryTarget(null);
   }, []);
 
-  // 3. START HARDWARE CAMERA
+  // 4. START HARDWARE CAMERA
   const startCamera = async () => {
     setCameraError(null);
     setIsStreamingLive(false);
     setHazardResolved(false);
     setCompletedActions([]);
+    setCurrentSubtitle('');
+    lastSpokenTypeRef.current = null;
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -151,7 +284,7 @@ export default function App() {
     }
   };
 
-  // 4. ATTACH MEDIA STREAM TO VIDEO ELEMENT
+  // 5. ATTACH MEDIA STREAM TO VIDEO ELEMENT
   useEffect(() => {
     if (!cameraActive || !streamRef.current) return;
 
@@ -190,11 +323,10 @@ export default function App() {
     };
   }, [cameraActive]);
 
-  // 5. CHROMATIC PIXEL FLAME DETECTION (CANVAS RGB VARIANCE)
+  // 6. CHROMATIC PIXEL FLAME DETECTION (CANVAS RGB VARIANCE)
   const detectFlamePixels = (video, procCtx, width, height) => {
     if (!procCtx || width === 0 || height === 0) return null;
 
-    // Scale down for ultra-fast chromatic scan
     const sampleW = 160;
     const sampleH = 120;
     procCtx.drawImage(video, 0, 0, sampleW, sampleH);
@@ -203,8 +335,6 @@ export default function App() {
     const data = imgData.data;
 
     let flamePixels = 0;
-    let sumX = 0;
-    let sumY = 0;
     let minX = sampleW;
     let maxX = 0;
     let minY = sampleH;
@@ -220,8 +350,6 @@ export default function App() {
         // High luminance red/orange with low blue and high warmth differential
         if (r > 190 && g < 140 && b < 85 && (r - g) > 60) {
           flamePixels++;
-          sumX += x;
-          sumY += y;
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
           if (y < minY) minY = y;
@@ -230,7 +358,6 @@ export default function App() {
       }
     }
 
-    // Threshold: cluster of flame pixels detected
     if (flamePixels >= 18) {
       const scaleX = width / sampleW;
       const scaleY = height / sampleH;
@@ -254,7 +381,7 @@ export default function App() {
     return null;
   };
 
-  // 6. REAL-TIME AI INFERENCE & OVERLAY RENDERING LOOP
+  // 7. REAL-TIME AI INFERENCE & OVERLAY RENDERING LOOP
   useEffect(() => {
     if (!cameraActive || !isStreamingLive) return;
 
@@ -275,7 +402,6 @@ export default function App() {
         const vWidth = video.videoWidth;
         const vHeight = video.videoHeight;
 
-        // Synchronize display dimensions
         if (overlay.width !== vWidth || overlay.height !== vHeight) {
           overlay.width = vWidth;
           overlay.height = vHeight;
@@ -285,7 +411,7 @@ export default function App() {
 
         ctx.clearRect(0, 0, vWidth, vHeight);
 
-        // Run object detection & chromatic analysis every 100ms (10 FPS limit for smooth 60fps UI)
+        // Run object detection & chromatic analysis at ~10 FPS
         if (timestamp - lastInferenceTimeRef.current >= 100) {
           lastInferenceTimeRef.current = timestamp;
 
@@ -316,7 +442,7 @@ export default function App() {
                     category: 'ELECTRICAL',
                     label: `⚡ Electrical Unit (${pred.class})`,
                     score: pred.score,
-                    bbox: pred.bbox, // [x, y, width, height]
+                    bbox: pred.bbox,
                     color: '#F59E0B' // Amber
                   });
                 } else if (EXTINGUISHER_CLASSES.has(labelLower)) {
@@ -352,19 +478,17 @@ export default function App() {
           setHasExtinguisher(foundExtinguisher);
           setHasWorker(foundWorker);
 
-          // Determine primary target for HUD lock-on
           const primary = detectedItems.find((d) => d.category === 'FLAME') ||
                           detectedItems.find((d) => d.category === 'ELECTRICAL') ||
                           detectedItems.find((d) => d.category === 'EXTINGUISHER') || null;
           setPrimaryTarget(primary);
         }
 
-        // --- C. RENDER DYNAMIC BOUNDING BOXES & RETICLE ---
+        // C. RENDER DYNAMIC BOUNDING BOXES & TARGETING RETICLE
         if (detections.length > 0) {
           detections.forEach((item) => {
             const [x, y, w, h] = item.bbox;
 
-            // Box Outline
             ctx.save();
             ctx.lineWidth = 3;
             ctx.strokeStyle = item.color;
@@ -372,21 +496,15 @@ export default function App() {
             ctx.shadowBlur = 8;
             ctx.strokeRect(x, y, w, h);
 
-            // Corner Brackets
             const cornerSize = Math.min(20, w / 4, h / 4);
             ctx.lineWidth = 4;
             ctx.beginPath();
-            // Top-left
             ctx.moveTo(x, y + cornerSize); ctx.lineTo(x, y); ctx.lineTo(x + cornerSize, y);
-            // Top-right
             ctx.moveTo(x + w - cornerSize, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cornerSize);
-            // Bottom-left
             ctx.moveTo(x, y + h - cornerSize); ctx.lineTo(x, y + h); ctx.lineTo(x + cornerSize, y + h);
-            // Bottom-right
             ctx.moveTo(x + w - cornerSize, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cornerSize);
             ctx.stroke();
 
-            // Label Chip Background
             const text = `${item.label} ${Math.round(item.score * 100)}%`;
             ctx.font = 'bold 13px system-ui, sans-serif';
             const textWidth = ctx.measureText(text).width;
@@ -395,18 +513,16 @@ export default function App() {
             ctx.shadowBlur = 0;
             ctx.fillRect(x, Math.max(0, y - 26), textWidth + 16, 24);
 
-            // Label Color Bar
             ctx.fillStyle = item.color;
             ctx.fillRect(x, Math.max(0, y - 26), 4, 24);
 
-            // Label Text
             ctx.fillStyle = '#FFFFFF';
             ctx.fillText(text, x + 10, Math.max(0, y - 9));
             ctx.restore();
           });
         }
 
-        // Draw HUD Lock-On Crosshair on Primary Target
+        // Draw HUD Lock-On Crosshairs on Primary Target
         if (primaryTarget) {
           const [tx, ty, tw, th] = primaryTarget.bbox;
           const centerX = tx + tw / 2;
@@ -417,12 +533,10 @@ export default function App() {
           ctx.lineWidth = 2;
           ctx.setLineDash([4, 4]);
 
-          // Lock-on ring
           ctx.beginPath();
           ctx.arc(centerX, centerY, 32, 0, Math.PI * 2);
           ctx.stroke();
 
-          // Crosshairs
           ctx.beginPath();
           ctx.setLineDash([]);
           ctx.moveTo(centerX - 40, centerY); ctx.lineTo(centerX - 10, centerY);
@@ -455,67 +569,109 @@ export default function App() {
     return () => stopCamera();
   }, [stopCamera]);
 
-  // 7. DYNAMIC STATE-DRIVEN GUIDANCE RESOLUTION
+  // 8. DYNAMIC DETECTION-TO-GUIDANCE ROUTER (DUAL FORMAT: TEXT + VOICE)
   const guidanceState = useMemo(() => {
+    // CASE E: RESOLVED / CONTROLLED
     if (hazardResolved) {
       return {
         type: 'RESOLVED',
         badge: '✓ COMPLIANCE VERIFIED',
-        badgeColor: 'bg-emerald-500 text-slate-950',
-        title: 'Area Neutralized & Secured',
-        hindiSub: 'खतरा समाप्त: सभी सुरक्षा नियम पूरे हुए।',
-        actionLabel: 'LOG INCIDENT AS RESOLVED',
+        badgeColor: 'bg-emerald-500 text-slate-950 font-black',
+        title: '✓ AREA SECURED & COMPLIANT',
+        instruction: 'सभी सुरक्षा प्रक्रियाएं पूरी हुईं। क्षेत्र अब सुरक्षित है।',
+        voiceAudio: 'खतरा नियंत्रित हो गया है! कार्यक्षेत्र पूरी तरह सुरक्षित है।',
+        actionPill: '✓ Log Incident as Resolved',
         btnClass: 'bg-emerald-600 hover:bg-emerald-500 text-white'
       };
     }
 
+    // CASE B: ACTIVE FLAME / FIRE DETECTED (High Heat / Fire Pixel Cluster)
     if (hasFlame) {
       return {
         type: 'FLAME',
         badge: '🔥 ACTIVE FLAME DETECTED',
-        badgeColor: 'bg-red-600 text-white animate-pulse',
-        title: 'Maintain 2M Distance & Aim Nozzle at Base',
-        hindiSub: '2 मीटर की सुरक्षित दूरी बनाएं, जड़ पर निशाना साधें',
-        actionLabel: 'DISCHARGE SUPPRESSION AGENT ➔',
-        btnClass: 'bg-red-600 hover:bg-red-500 text-white'
+        badgeColor: 'bg-red-600 text-white animate-pulse font-black',
+        title: '🔥 ACTIVE FIRE IN VIEW',
+        instruction: '1. 2 मीटर की सुरक्षित दूरी बनाएं। 2. धुएं पर नहीं, आग की जड़ (Base) पर निशाना लगाएं।',
+        voiceAudio: 'आग की पहचान हुई है! सुरक्षित दूरी बनाएं और आग की जड़ पर निशाना लगाएं।',
+        actionPill: '🎯 Lock Aim at Base',
+        btnClass: 'bg-red-600 hover:bg-red-500 text-white shadow-red-200'
       };
     }
 
+    // CASE A: ELECTRICAL APPLIANCE DETECTED (Laptop, TV, Electronics, Switchboard)
     if (hasElectrical) {
       return {
         type: 'ELECTRICAL',
         badge: '⚡ LIVE ELECTRICAL HAZARD IN VIEW',
-        badgeColor: 'bg-amber-500 text-slate-950 animate-pulse',
-        title: 'Isolate 440V Main Power Immediately',
-        hindiSub: 'बिजली का मुख्य स्विच तुरंत बंद करें (Isolate Power)',
-        actionLabel: 'CONFIRM POWER ISOLATED ➔',
-        btnClass: 'bg-[#F59E0B] hover:bg-amber-500 text-slate-950'
+        badgeColor: 'bg-amber-500 text-slate-950 animate-pulse font-black',
+        title: '⚡ ELECTRICAL HAZARD DETECTED',
+        instruction: '1. तुरंत मेन स्विच बंद करें। 2. केवल CO2 एक्सटिंग्विशर का उपयोग करें। पानी का इस्तेमाल सख्त मना है!',
+        voiceAudio: 'इलेक्ट्रिकल खतरा मिला है! सबसे पहले मेन पावर ऑफ करें, पानी का इस्तेमाल ना करें।',
+        actionPill: '🔌 Confirm Power Isolated',
+        btnClass: 'bg-[#F59E0B] hover:bg-amber-500 text-slate-950 shadow-amber-200'
       };
     }
 
+    // CASE C: EXTINGUISHER / BOTTLE / TOOL DETECTED
     if (hasExtinguisher) {
       return {
         type: 'EXTINGUISHER',
         badge: '🧯 SUPPRESSION TOOL RECOGNIZED',
-        badgeColor: 'bg-emerald-500 text-slate-950',
-        title: 'Equipment Ready: Pull Safety Pin & Test Nozzle',
-        hindiSub: 'सिलेंडर की सेफ्टी पिन निकालें और जड़ पर निशाना लगाएं',
-        actionLabel: 'DEPLOY EXTINGUISHER ➔',
-        btnClass: 'bg-emerald-600 hover:bg-emerald-500 text-white'
+        badgeColor: 'bg-emerald-500 text-slate-950 font-black',
+        title: '🧯 SAFETY EQUIPMENT RECOGNIZED',
+        instruction: '1. सेफ्टी पिन खींचें। 2. लीवर दबाकर लगातार बाईं-दाईं तरफ स्वीप करें।',
+        voiceAudio: 'सिलेंडर मिल गया है! सेफ्टी पिन निकालें और लीवर दबाकर स्प्रे करें।',
+        actionPill: '💨 Pull Pin & Discharge',
+        btnClass: 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200'
       };
     }
 
-    // Default Scanning State
+    // CASE D: NO HAZARD IN VIEW / SCANNING
     return {
       type: 'SCANNING',
       badge: '🔍 SCANNING AREA...',
-      badgeColor: 'bg-slate-800 text-amber-300',
-      title: 'Point Camera at Hazard or Equipment',
-      hindiSub: 'कैमरा बिजली के पैनल, आग, या बुझाने वाले सिलेंडर की ओर लाएं',
-      actionLabel: 'SEARCHING FOR HAZARD TARGETS...',
+      badgeColor: 'bg-slate-800 text-amber-300 font-bold',
+      title: '🔍 SCANNING ENVIRONMENT...',
+      instruction: 'कैमरे को संदिग्ध उपकरण या आग की तरफ दिखाएं।',
+      voiceAudio: 'खतरे की दिशा में कैमरा दिखाएं।',
+      actionPill: '🔍 Searching for Hazards...',
       btnClass: 'bg-slate-200 text-slate-400 cursor-not-allowed'
     };
   }, [hasFlame, hasElectrical, hasExtinguisher, hazardResolved]);
+
+  // 9. AUTOMATIC REAL-TIME VOICE GUIDANCE DISPATCHER
+  useEffect(() => {
+    if (!cameraActive || isMuted) return;
+
+    const stateType = guidanceState.type;
+    const voiceText = guidanceState.voiceAudio;
+
+    if (!voiceText) return;
+
+    // For SCANNING state: only speak once when camera initially opens
+    if (stateType === 'SCANNING') {
+      if (lastSpokenTypeRef.current === null) {
+        const initialTimer = setTimeout(() => {
+          speakGuidance(voiceText, 'SCANNING', true);
+        }, 900);
+        return () => clearTimeout(initialTimer);
+      }
+      return;
+    }
+
+    // When an active hazard state is recognized
+    if (lastSpokenTypeRef.current !== stateType) {
+      // Immediate voice guidance trigger on new detection
+      speakGuidance(voiceText, stateType, true);
+    } else {
+      // Re-prompt periodically with safe debounced interval
+      const repeatInterval = setInterval(() => {
+        speakGuidance(voiceText, stateType);
+      }, 5500);
+      return () => clearInterval(repeatInterval);
+    }
+  }, [cameraActive, isMuted, guidanceState, speakGuidance]);
 
   // Execute Dynamic Step Action
   const handleDynamicAction = () => {
@@ -524,12 +680,13 @@ export default function App() {
     if (guidanceState.type === 'RESOLVED') {
       setHazardResolved(false);
       setCompletedActions([]);
+      setCurrentSubtitle('');
+      lastSpokenTypeRef.current = null;
       return;
     }
 
     setCompletedActions((prev) => [...prev, guidanceState.type]);
 
-    // If active flame was suppressed or electrical power isolated
     if (guidanceState.type === 'FLAME' || guidanceState.type === 'ELECTRICAL') {
       setHazardResolved(true);
     }
@@ -555,7 +712,7 @@ export default function App() {
               </div>
               <div>
                 <h1 className="text-lg font-black tracking-tight text-slate-900 leading-none">SurakshaAR</h1>
-                <span className="text-[10px] text-slate-500 font-bold">AI Computer Vision</span>
+                <span className="text-[10px] text-slate-500 font-bold">AI Computer Vision & Voice Engine</span>
               </div>
             </div>
 
@@ -607,15 +764,15 @@ export default function App() {
               </div>
 
               <div className="flex flex-col items-center justify-center p-5 rounded-2xl border border-slate-200 bg-white shadow-xs min-h-[120px]">
-                <span className="text-3xl mb-2">👤</span>
-                <span className="text-sm font-bold text-slate-900">Buddy Safety</span>
-                <span className="text-[10px] text-slate-500 font-medium">Worker Verification</span>
+                <span className="text-3xl mb-2">🔊</span>
+                <span className="text-sm font-bold text-slate-900">Dual Voice HUD</span>
+                <span className="text-[10px] text-slate-500 font-medium">Hindi + English Audio</span>
               </div>
             </div>
 
             {/* Status Information Chip */}
-            <div className="bg-amber-50 border border-amber-200 text-amber-950 px-3.5 py-2.5 rounded-xl flex items-center justify-center text-xs font-semibold text-center shadow-xs">
-              <span>{modelLoading ? '⏳ Loading MobileNet Neural Network...' : '✓ AI Vision Model Armed & Ready'}</span>
+            <div className="bg-amber-50 border border-amber-200 text-amber-950 px-3.5 py-2.5 rounded-xl flex items-center justify-center text-xs font-semibold text-center shadow-xs gap-2">
+              <span>{modelLoading ? '⏳ Loading MobileNet Neural Network...' : '✓ AI Vision & Native Voice Guidance Ready'}</span>
             </div>
           </div>
 
@@ -631,7 +788,7 @@ export default function App() {
         </div>
       ) : (
         /* ====================================================================
-            2. LIVE CAMERA VIEW (REAL-TIME TF.JS + CHROMATIC BOUNDING BOXES)
+            2. LIVE CAMERA VIEW (REAL-TIME TF.JS + DUAL VOICE HUD)
             ==================================================================== */
         <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col justify-between">
           {/* Native HTML5 Video Element at z-0 */}
@@ -653,7 +810,7 @@ export default function App() {
           <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-black/85 via-black/40 to-transparent pointer-events-none z-10" />
 
           {/* Floating Top Header Bar (z-20) */}
-          <header className="relative z-20 p-4 flex items-center justify-between">
+          <header className="relative z-20 p-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               {/* Dynamic State Badge */}
               <div className={`px-3 py-1.5 rounded-full font-bold text-xs shadow-md whitespace-nowrap flex items-center gap-1.5 ${guidanceState.badgeColor}`}>
@@ -668,14 +825,30 @@ export default function App() {
               )}
             </div>
 
-            {/* Circular Exit Button */}
-            <button
-              onClick={stopCamera}
-              className="w-9 h-9 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/20 flex items-center justify-center font-bold text-sm hover:bg-black/90 transition active:scale-90 shadow-md shrink-0 ml-2"
-              title="Close Camera"
-            >
-              ✕
-            </button>
+            {/* Right Controls: Mute Toggle + Exit Button */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Voice Guidance Mute / Unmute Button */}
+              <button
+                onClick={toggleMute}
+                className={`min-h-[38px] px-3 py-1.5 rounded-full font-bold text-xs shadow-md transition flex items-center gap-1.5 active:scale-95 border ${
+                  !isMuted
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-extrabold'
+                    : 'bg-slate-800/90 text-slate-300 border-slate-700'
+                }`}
+                title={isMuted ? 'Turn on Voice Guidance' : 'Mute Voice Guidance'}
+              >
+                <span>{!isMuted ? '🔊 Voice Guidance: ON' : '🔇 Muted'}</span>
+              </button>
+
+              {/* Circular Exit Button */}
+              <button
+                onClick={stopCamera}
+                className="w-9 h-9 min-h-[36px] rounded-full bg-black/70 backdrop-blur-md text-white border border-white/20 flex items-center justify-center font-bold text-sm hover:bg-black/90 transition active:scale-90 shadow-md shrink-0"
+                title="Close Camera"
+              >
+                ✕
+              </button>
+            </div>
           </header>
 
           {/* Center Viewport: Active Scanning Crosshair if no target */}
@@ -690,6 +863,43 @@ export default function App() {
             )}
           </div>
 
+          {/* 3. FLOATING REAL-TIME SUBTITLE / VOICE TRANSCRIPT PILL (Z-20) */}
+          {currentSubtitle && (
+            <div className="relative z-20 px-4 pb-2 transition-all duration-300">
+              <div className="bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl rounded-2xl p-3 flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-900 shrink-0 font-bold">
+                  {isSpeaking ? (
+                    <span className="text-xs font-black text-amber-600 animate-pulse">
+                      (( 🔊 ))
+                    </span>
+                  ) : (
+                    <span className="text-sm">💬</span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      {isSpeaking ? (
+                        <>
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
+                          <span className="text-emerald-700 font-extrabold">Active Voice Audio</span>
+                        </>
+                      ) : (
+                        <span>Voice Instruction</span>
+                      )}
+                    </span>
+                    <span className="text-[9px] font-mono text-slate-400 font-bold uppercase">
+                      {isMuted ? 'Muted' : 'Native TTS'}
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-900 leading-snug">
+                    {currentSubtitle}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 4. REAL-TIME CONTEXTUAL GUIDANCE ACTION SHEET (Z-20) */}
           <div className="relative z-20 bg-white rounded-t-3xl shadow-2xl p-5 border-t border-slate-200 space-y-4">
             {/* Top Sheet: Live Detection Feed Summary */}
@@ -701,9 +911,16 @@ export default function App() {
                 </span>
               </div>
 
-              <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full border border-slate-200">
-                AI Vision • 10 FPS
-              </span>
+              <div className="flex items-center gap-1.5">
+                {!isMuted && isSpeaking && (
+                  <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full animate-pulse border border-amber-300">
+                    (( 🔊 )) Speaking
+                  </span>
+                )}
+                <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full border border-slate-200">
+                  AI Vision • 10 FPS
+                </span>
+              </div>
             </div>
 
             {/* Dynamic Step Content Based on What Camera Sees */}
@@ -712,18 +929,17 @@ export default function App() {
                 <h2 className="text-base font-black text-slate-900 leading-tight">
                   {guidanceState.title}
                 </h2>
-                <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                  {guidanceState.hindiSub}
+                <p className="text-xs font-semibold text-slate-600 mt-1 leading-relaxed">
+                  {guidanceState.instruction}
                 </p>
               </div>
 
-              {/* Dynamic Action Button */}
               <button
                 onClick={handleDynamicAction}
                 disabled={guidanceState.type === 'SCANNING'}
                 className={`w-full h-[52px] min-h-[52px] font-black text-xs sm:text-sm tracking-wider uppercase rounded-xl shadow-md transition flex items-center justify-center gap-2 active:scale-[0.98] ${guidanceState.btnClass}`}
               >
-                <span>{guidanceState.actionLabel}</span>
+                <span>{guidanceState.actionPill}</span>
               </button>
             </div>
           </div>
@@ -732,3 +948,4 @@ export default function App() {
     </div>
   );
 }
+
