@@ -39,7 +39,6 @@ export default function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState('');
-  const [availableVoices, setAvailableVoices] = useState([]);
 
   // Hardware and Canvas References
   const videoRef = useRef(null);
@@ -50,111 +49,86 @@ export default function App() {
   const animFrameIdRef = useRef(null);
   const lastInferenceTimeRef = useRef(0);
 
-  // Speech debouncing & cooldown references
-  const lastSpokenTypeRef = useRef(null);
-  const lastSpokenTimeRef = useRef(0);
-  const utteranceRef = useRef(null);
+  // Cached voice and debounced speech tracking
+  const voiceRef = useRef(null);
+  const lastSpokenRef = useRef({ text: '', timestamp: 0 });
 
-  // 1. POPULATE & MONITOR SYSTEM TTS VOICES (OFFLINE & NATIVE)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
-    const updateVoices = () => {
+  // 1. SPEECH UNLOCK ON USER INTERACTION (THE GOLDEN FIX)
+  const unlockSpeechEngine = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
-        const voices = window.speechSynthesis.getVoices();
-        if (voices && voices.length > 0) {
-          setAvailableVoices(voices);
-        }
+        window.speechSynthesis.cancel();
+        const silentPrimer = new SpeechSynthesisUtterance('');
+        silentPrimer.volume = 0;
+        window.speechSynthesis.speak(silentPrimer);
+        console.log("🔊 Speech Engine Primed & Unlocked via User Gesture");
       } catch (err) {
-        console.warn('Voice enumeration warning:', err);
+        console.warn("Speech unlock warning:", err);
       }
-    };
-
-    updateVoices();
-    window.speechSynthesis.onvoiceschanged = updateVoices;
-
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.onvoiceschanged = null;
-      }
-    };
+    }
   }, []);
 
-  // Preferred Voice Picker: Searches for Hindi (hi-IN) or Indian English (en-IN)
-  const getPreferredVoice = useCallback((voices) => {
-    if (!voices || voices.length === 0) return null;
-    // 1. Look for Hindi voices
-    const hiVoice = voices.find((v) => v.lang === 'hi-IN' || v.lang.toLowerCase().startsWith('hi'));
-    if (hiVoice) return hiVoice;
-    // 2. Look for Indian English voices
-    const enInVoice = voices.find((v) => v.lang === 'en-IN' || v.name.toLowerCase().includes('india'));
-    if (enInVoice) return enInVoice;
-    // 3. Fallback to default or any English voice
-    const defaultVoice = voices.find((v) => v.default);
-    if (defaultVoice) return defaultVoice;
-    const enVoice = voices.find((v) => v.lang.toLowerCase().startsWith('en'));
-    if (enVoice) return enVoice;
-    return voices[0] || null;
+  // 2. ASYNC VOICE PREPARATION HOOK
+  useEffect(() => {
+    const loadVoices = () => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const availableVoices = window.speechSynthesis.getVoices();
+      // Prioritize Hindi or Indian English voice, fallback to first available
+      const preferredVoice = availableVoices.find(v => v.lang === 'hi-IN' || v.lang.includes('hi')) ||
+                             availableVoices.find(v => v.lang === 'en-IN') ||
+                             availableVoices[0];
+      voiceRef.current = preferredVoice;
+    };
+
+    loadVoices();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
   }, []);
 
-  // Safe Native Speech Synthesis Dispatcher with Cooldown & Debounce
-  const speakGuidance = useCallback((text, stateType, force = false) => {
-    if (!text || isMuted || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  // 3. BULLETPROOF speakGuidance FUNCTION
+  const speakGuidance = useCallback((textToSpeak, force = false) => {
+    if (!textToSpeak || isMuted) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      console.warn("Speech Synthesis not supported in this browser.");
       return;
     }
 
     const now = Date.now();
-    const COOLDOWN_MS = 4500;
-    const isSameType = lastSpokenTypeRef.current === stateType;
-
-    // Cooldown check: if same hazard type and cooldown hasn't elapsed, skip to prevent stutter
-    if (!force && isSameType && (now - lastSpokenTimeRef.current < COOLDOWN_MS)) {
+    // Don't repeat the exact same sentence within 5 seconds unless forced
+    if (!force && lastSpokenRef.current.text === textToSpeak && (now - lastSpokenRef.current.timestamp) < 5000) {
       return;
     }
 
-    try {
-      // Cancel previous speech immediately to give precedence to fresh emergency instruction
-      window.speechSynthesis.cancel();
+    // Cancel any lingering queued speech
+    window.speechSynthesis.cancel();
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-
-      const voices = availableVoices.length > 0 ? availableVoices : window.speechSynthesis.getVoices();
-      const voice = getPreferredVoice(voices);
-      if (voice) {
-        utterance.voice = voice;
-        utterance.lang = voice.lang || 'hi-IN';
-      } else {
-        utterance.lang = 'hi-IN';
-      }
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        setCurrentSubtitle(text);
-        lastSpokenTimeRef.current = Date.now();
-        lastSpokenTypeRef.current = stateType;
-      };
-
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-
-      utterance.onerror = (e) => {
-        if (e.error !== 'interrupted') {
-          console.warn('SpeechSynthesis error:', e.error);
-        }
-        setIsSpeaking(false);
-      };
-
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
-    } catch (err) {
-      console.warn('Speech synthesis invocation failed:', err);
-      setIsSpeaking(false);
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    if (voiceRef.current) {
+      utterance.voice = voiceRef.current;
     }
-  }, [isMuted, availableVoices, getPreferredVoice]);
+    utterance.rate = 0.95; // Clear and understandable speed
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    utterance.onstart = () => {
+      console.log("🔊 Speech Started:", textToSpeak);
+      setIsSpeaking(true);
+      setCurrentSubtitle(textToSpeak);
+    };
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+    utterance.onerror = (e) => {
+      if (e.error !== 'interrupted') {
+        console.error("Speech Error:", e);
+      }
+      setIsSpeaking(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+    lastSpokenRef.current = { text: textToSpeak, timestamp: now };
+  }, [isMuted]);
 
   // Toggle Mute Audio Controller
   const toggleMute = () => {
@@ -163,6 +137,8 @@ export default function App() {
       if (next && typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         setIsSpeaking(false);
+      } else if (!next) {
+        unlockSpeechEngine();
       }
       return next;
     });
@@ -212,7 +188,7 @@ export default function App() {
     }
     setIsSpeaking(false);
     setCurrentSubtitle('');
-    lastSpokenTypeRef.current = null;
+    lastSpokenRef.current = { text: '', timestamp: 0 };
 
     if (animFrameIdRef.current) {
       cancelAnimationFrame(animFrameIdRef.current);
@@ -239,12 +215,13 @@ export default function App() {
 
   // 4. START HARDWARE CAMERA
   const startCamera = async () => {
+    unlockSpeechEngine();
     setCameraError(null);
     setIsStreamingLive(false);
     setHazardResolved(false);
     setCompletedActions([]);
     setCurrentSubtitle('');
-    lastSpokenTypeRef.current = null;
+    lastSpokenRef.current = { text: '', timestamp: 0 };
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -651,9 +628,9 @@ export default function App() {
 
     // For SCANNING state: only speak once when camera initially opens
     if (stateType === 'SCANNING') {
-      if (lastSpokenTypeRef.current === null) {
+      if (lastSpokenRef.current.text === '') {
         const initialTimer = setTimeout(() => {
-          speakGuidance(voiceText, 'SCANNING', true);
+          speakGuidance(voiceText, true);
         }, 900);
         return () => clearTimeout(initialTimer);
       }
@@ -661,17 +638,27 @@ export default function App() {
     }
 
     // When an active hazard state is recognized
-    if (lastSpokenTypeRef.current !== stateType) {
+    if (lastSpokenRef.current.text !== voiceText) {
       // Immediate voice guidance trigger on new detection
-      speakGuidance(voiceText, stateType, true);
+      speakGuidance(voiceText, true);
     } else {
       // Re-prompt periodically with safe debounced interval
       const repeatInterval = setInterval(() => {
-        speakGuidance(voiceText, stateType);
+        speakGuidance(voiceText);
       }, 5500);
       return () => clearInterval(repeatInterval);
     }
   }, [cameraActive, isMuted, guidanceState, speakGuidance]);
+
+  // 10. MANUAL REPLAY VOICE GUIDANCE TRIGGER
+  const handleReplayVoice = useCallback((e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    unlockSpeechEngine();
+    if (guidanceState.voiceAudio) {
+      console.log("🔊 Manual Voice Replay Triggered:", guidanceState.voiceAudio);
+      speakGuidance(guidanceState.voiceAudio, true);
+    }
+  }, [unlockSpeechEngine, guidanceState.voiceAudio, speakGuidance]);
 
   // Execute Dynamic Step Action
   const handleDynamicAction = () => {
@@ -681,7 +668,7 @@ export default function App() {
       setHazardResolved(false);
       setCompletedActions([]);
       setCurrentSubtitle('');
-      lastSpokenTypeRef.current = null;
+      lastSpokenRef.current = { text: '', timestamp: 0 };
       return;
     }
 
@@ -779,7 +766,10 @@ export default function App() {
           {/* Sticky Primary CTA (56px Height, Thumb-Friendly) */}
           <div className="pt-3 pb-1">
             <button
-              onClick={startCamera}
+              onClick={() => {
+                unlockSpeechEngine();
+                startCamera();
+              }}
               className="w-full h-14 min-h-[56px] bg-[#F59E0B] hover:bg-amber-500 active:scale-[0.98] text-[#0F172A] font-black text-sm tracking-wider uppercase rounded-2xl shadow-lg transition flex items-center justify-center gap-2"
             >
               <span>📸 OPEN AI CAMERA & DETECT</span>
@@ -851,6 +841,18 @@ export default function App() {
             </div>
           </header>
 
+          {/* Floating Manual Audio Replay Button on HUD */}
+          <div className="relative z-20 px-4 pt-1 pb-1 flex justify-end">
+            <button
+              onClick={handleReplayVoice}
+              className="bg-white/95 backdrop-blur-md border border-slate-300 shadow-md px-3.5 py-1.5 rounded-full font-black text-xs text-slate-900 flex items-center gap-1.5 active:scale-95 hover:bg-white transition"
+              title="Test Audio / Replay Voice Guidance"
+            >
+              <span className="text-amber-500 font-bold">🔊</span>
+              <span>Replay Voice Guidance</span>
+            </button>
+          </div>
+
           {/* Center Viewport: Active Scanning Crosshair if no target */}
           <div className="relative z-10 flex-1 flex items-center justify-center pointer-events-none">
             {!primaryTarget && (
@@ -888,9 +890,13 @@ export default function App() {
                         <span>Voice Instruction</span>
                       )}
                     </span>
-                    <span className="text-[9px] font-mono text-slate-400 font-bold uppercase">
-                      {isMuted ? 'Muted' : 'Native TTS'}
-                    </span>
+                    <button
+                      onClick={handleReplayVoice}
+                      className="px-2 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-950 font-black text-[9px] uppercase tracking-wider border border-amber-300 transition active:scale-95 flex items-center gap-1"
+                      title="Replay Voice Guidance"
+                    >
+                      <span>🔊 Replay</span>
+                    </button>
                   </div>
                   <p className="text-xs font-bold text-slate-900 leading-snug">
                     {currentSubtitle}
