@@ -314,109 +314,163 @@
 
             {/* TAB 2: LIVE AR CAMERA */}
             {tab === 'ar_camera' && (
-              <div className="relative h-[calc(100vh-140px)] min-h-[580px] bg-slate-950 text-white flex flex-col justify-between overflow-hidden">
-                <div className="absolute inset-0 z-0">
-                  {viewMode === 'CAMERA_AR' && cameraActive ? (
-                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                  ) : (
-                    /* 2D Canvas Fallback */
-                    <div className="w-full h-full relative bg-slate-900 flex items-center justify-center p-4">
-                      <div className="w-72 h-80 bg-slate-950 rounded-2xl border-2 border-slate-700 p-4 flex flex-col justify-between shadow-2xl">
-                        <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                          <span className="text-[10px] font-mono text-amber-400 font-bold">440V SWITCHGEAR</span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${powerOff ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-300'}`}>{powerOff ? 'POWER OFF' : 'LIVE 440V'}</span>
-                        </div>
+              <div className="p-4 space-y-3 bg-[#F8FAFC]">
+                {/* Header */}
+                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-black">
+                      <Icons.Flame />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-black text-slate-900">Spatial AR Drill</span>
+                        <span className="bg-amber-100 text-amber-900 text-[10px] font-black px-1.5 py-0.5 rounded border border-amber-300">PASS</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">Rajesh Gope (WKR-4491)</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setTab('modules')} className="h-8 px-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50">Exit</button>
+                </div>
 
-                        <div className="relative h-44 flex items-end justify-center">
-                          {fireIntensity > 0 ? (
-                            <div className="flex flex-col items-center">
-                              <div className="relative flex items-end" style={{ transform: `scale(${fireIntensity / 100})`, transformOrigin: 'bottom center' }}>
-                                <div className="text-amber-500 animate-bounce"><Icons.Flame /></div>
-                              </div>
-                              <button onClick={handleAim} className={`mt-2 px-3 py-1 rounded-full text-[10px] font-bold border ${aimLocked ? 'bg-emerald-500 text-slate-950' : 'bg-black/80 text-amber-400 border-amber-400 animate-pulse'}`}>{aimLocked ? 'AIM BASE LOCKED ✓' : 'TAP: AIM AT BASE'}</button>
-                            </div>
-                          ) : (
-                            <div className="text-center">
-                              <span className="text-xs font-black text-emerald-400 uppercase">Fire Extinguished</span>
-                            </div>
-                          )}
-                        </div>
+                {/* 1. ACTUAL HARDWARE CAMERA INTEGRATION */}
+                <div className="relative w-full h-72 sm:h-96 rounded-2xl overflow-hidden bg-black border border-slate-300 shadow-md">
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    className="w-full h-full object-cover"
+                  />
 
-                        <div className="text-[10px] text-slate-400 font-mono flex justify-between border-t border-slate-800 pt-1">
-                          <span>Temp: 42°C</span>
-                          <span>CO: 15 ppm</span>
+                  {/* Camera Permission / Error Trigger */}
+                  {cameraError && (
+                    <div className="absolute inset-0 bg-slate-950/90 z-20 flex flex-col items-center justify-center p-6 text-center text-white space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400">
+                        <Icons.Camera />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-100">Camera Access Required</h3>
+                        <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                          Allow camera permissions to view the interactive live AR fire guidance overlay.
+                        </p>
+                      </div>
+                      <button 
+                        onClick={startCamera} 
+                        className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-lg transition active:scale-95"
+                      >
+                        Allow Camera Permission
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 2. REAL-TIME AR FIRE GUIDANCE OVERLAY (INSIDE CAMERA VIEW) */}
+                  <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 z-10">
+                    {/* Top HUD: Flame Gauge & Hindi Guidance Banner */}
+                    <div className="space-y-2 pointer-events-auto">
+                      <div className="bg-slate-950/85 backdrop-blur-md border border-amber-400/50 rounded-xl px-3 py-1.5 flex items-center justify-between text-amber-300 shadow-lg">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                          <span className="text-[11px] font-bold truncate">
+                            {powerOff ? (pinPulled ? (aimLocked ? 'CO2 स्प्रे करें (Press Spray CO2)' : 'आग की जड़ पर निशाना लगाएं (Aim at Base)') : 'अब सेफ्टी पिन निकालें (Pull Safety Pin)') : 'पहले मेन पावर बंद करें (Isolate Power Source)'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0 uppercase">DGMS PASS</span>
+                      </div>
+
+                      {/* Flame Gauge */}
+                      <div className="bg-slate-950/80 backdrop-blur-md border border-slate-700/80 rounded-xl px-3 py-1.5 space-y-1 shadow-md">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-200">Flame Gauge</span>
+                          <span className={`font-mono font-black ${fireIntensity > 50 ? 'text-red-400' : fireIntensity > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {fireIntensity}% {fireIntensity === 0 ? '(EXTINGUISHED)' : ''}
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+                          <div className={`h-full transition-all duration-300 rounded-full ${fireIntensity > 50 ? 'bg-gradient-to-r from-red-600 to-amber-500' : fireIntensity > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${fireIntensity}%` }} />
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
 
-                {/* Top AR Controls */}
-                <div className="relative z-20 p-3 flex justify-between items-center">
-                  <button onClick={() => setTab('modules')} className="h-9 px-3 rounded-xl bg-slate-900/80 border border-slate-700 text-xs font-bold">Exit</button>
-                  <button onClick={() => {
-                    if (viewMode === 'CAMERA_AR') { stopCamera(); setViewMode('CANVAS_2D'); }
-                    else { setViewMode('CAMERA_AR'); startCamera(); }
-                  }} className="h-9 px-3 rounded-xl bg-slate-900/80 border border-slate-700 text-xs font-bold text-slate-200">
-                    {viewMode === 'CAMERA_AR' ? 'Camera Live' : '2D Canvas'}
-                  </button>
-                </div>
-
-                {/* Gauge */}
-                <div className="relative z-20 px-3">
-                  <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-3 shadow-lg space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold">
-                      <span>Fire Intensity Gauge</span>
-                      <span className="font-mono text-amber-400">{fireIntensity}%</span>
+                    {/* Centered Simulated Animated Fire / Target Reticle */}
+                    <div className="relative flex-1 flex items-center justify-center pointer-events-auto">
+                      {fireIntensity > 0 ? (
+                        <div className="relative flex flex-col items-center">
+                          <div className="relative transition-all duration-300 flex items-end justify-center" style={{ transform: `scale(${Math.max(0.35, fireIntensity / 100)})`, transformOrigin: 'bottom center' }}>
+                            <div className="text-amber-500 animate-bounce drop-shadow-[0_0_15px_rgba(245,158,11,0.8)]"><Icons.Flame /></div>
+                          </div>
+                          <button onClick={handleAim} className={`mt-1 px-3 py-1 rounded-full text-[10px] font-bold border transition flex items-center gap-1.5 backdrop-blur-md ${aimLocked ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black' : pinPulled ? 'bg-amber-500 text-slate-950 border-amber-300 animate-pulse' : 'bg-black/80 text-slate-300 border-slate-600'}`}>
+                            <Icons.Crosshair />
+                            <span>{aimLocked ? 'AIM BASE LOCKED ✓' : '🎯 AIM AT BASE'}</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="bg-emerald-950/85 border border-emerald-400 rounded-2xl px-5 py-3 text-center text-white backdrop-blur-md shadow-2xl animate-in zoom-in-95">
+                          <Icons.Check />
+                          <span className="text-xs font-black text-emerald-300 tracking-wider uppercase block mt-1">Fire Extinguished (0%)</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700">
-                      <div className="h-full bg-amber-500 transition-all duration-300" style={{ width: `${fireIntensity}%` }} />
+
+                    {/* 4 Procedural Guidance Action Pills */}
+                    <div className="pointer-events-auto pt-1 space-y-1.5">
+                      <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                        <button onClick={handlePower} disabled={powerOff} className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-0.5 font-bold transition shadow-sm ${powerOff ? 'bg-emerald-600/90 text-white border-emerald-400' : 'bg-slate-950/85 text-amber-300 border-amber-400 animate-pulse'}`}>
+                          <Icons.Power />
+                          <span className="truncate w-full">1. Power Off</span>
+                        </button>
+                        <button onClick={handlePin} disabled={pinPulled} className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-0.5 font-bold transition shadow-sm ${pinPulled ? 'bg-emerald-600/90 text-white border-emerald-400' : powerOff ? 'bg-slate-950/85 text-amber-300 border-amber-400 animate-pulse' : 'bg-slate-900/60 text-slate-500 border-slate-700'}`}>
+                          <Icons.Lock />
+                          <span className="truncate w-full">2. Pull Pin</span>
+                        </button>
+                        <button onClick={handleAim} disabled={aimLocked || !pinPulled} className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-0.5 font-bold transition shadow-sm ${aimLocked ? 'bg-emerald-600/90 text-white border-emerald-400' : pinPulled ? 'bg-slate-950/85 text-amber-300 border-amber-400 animate-pulse' : 'bg-slate-900/60 text-slate-500 border-slate-700'}`}>
+                          <Icons.Crosshair />
+                          <span className="truncate w-full">3. Aim Base</span>
+                        </button>
+                        <button onClick={handleSpray} disabled={!aimLocked || fireIntensity === 0} className={`py-2 px-1 rounded-xl border flex flex-col items-center justify-center gap-0.5 font-bold transition shadow-sm ${fireIntensity === 0 ? 'bg-emerald-600/90 text-white border-emerald-400' : aimLocked ? 'bg-sky-500 text-slate-950 border-sky-300 animate-pulse' : 'bg-slate-900/60 text-slate-500 border-slate-700'}`}>
+                          <Icons.Wind />
+                          <span className="truncate w-full">4. Spray CO2</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Safety Alert */}
                 {alertMsg && (
-                  <div className="relative z-20 px-3 pt-2">
-                    <div className="bg-red-950 border border-red-500 p-2.5 rounded-xl text-xs text-red-200 font-bold">{alertMsg}</div>
+                  <div className="bg-red-50 border border-red-300 text-red-800 rounded-xl p-3 text-xs font-semibold">
+                    {alertMsg}
                   </div>
                 )}
 
-                {/* Procedural Actions */}
-                <div className="relative z-20 p-3 space-y-2 mt-auto">
-                  <div className="bg-slate-900/95 border border-slate-700 rounded-2xl p-3 shadow-xl space-y-2">
-                    <div className="flex justify-between text-[11px] font-bold text-amber-400 uppercase">
-                      <span>Procedural PASS Actions (Step {passStep}/4)</span>
-                      <button onClick={resetDrill} className="text-slate-400 underline">Reset</button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <button onClick={handlePower} disabled={powerOff} className={`h-12 px-3 rounded-xl border font-bold flex items-center gap-1.5 ${powerOff ? 'bg-emerald-950 text-emerald-300 border-emerald-600' : 'bg-amber-500 text-slate-950 border-amber-400'}`}>
-                        <Icons.Power />
-                        <span>{powerOff ? 'Power Off ✓' : '1. Power Off'}</span>
-                      </button>
-
-                      <button onClick={handlePin} disabled={pinPulled} className={`h-12 px-3 rounded-xl border font-bold flex items-center gap-1.5 ${pinPulled ? 'bg-emerald-950 text-emerald-300 border-emerald-600' : 'bg-slate-800 text-slate-200 border-slate-700'}`}>
-                        <Icons.Lock />
-                        <span>{pinPulled ? 'Pin Pulled ✓' : '2. Pull Pin'}</span>
-                      </button>
-
-                      <button onClick={handleAim} disabled={aimLocked} className={`h-12 px-3 rounded-xl border font-bold flex items-center gap-1.5 ${aimLocked ? 'bg-emerald-950 text-emerald-300 border-emerald-600' : 'bg-slate-800 text-slate-200 border-slate-700'}`}>
-                        <Icons.Crosshair />
-                        <span>{aimLocked ? 'Aimed ✓' : '3. Aim Base'}</span>
-                      </button>
-
-                      <button onClick={handleSpray} disabled={!aimLocked || fireExtinguished} className={`h-12 px-3 rounded-xl border font-bold flex items-center gap-1.5 ${fireExtinguished ? 'bg-emerald-950 text-emerald-300 border-emerald-600' : 'bg-sky-500 text-slate-950 border-sky-400'}`}>
-                        <Icons.Wind />
-                        <span>{fireExtinguished ? 'Extinguished ✓' : '4. Spray CO2'}</span>
-                      </button>
-                    </div>
+                {/* 3. TELEMETRY ACTION TRIGGERS (LIGHT THEME) */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                    <span>TELEMETRY ACTION TRIGGERS</span>
+                    <span className="font-mono text-[10px] text-slate-500">CMR Reg 139</span>
                   </div>
 
-                  {fireExtinguished && (
-                    <button onClick={() => setTab('assessment')} className="w-full h-12 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs shadow-lg">Proceed to Assessment</button>
-                  )}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button onClick={() => speak('अलार्म सक्रिय!', 'Alarm Sounded!')} className="p-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] hover:bg-slate-100 font-bold flex items-center gap-2 text-slate-800">
+                      <span>🔔 Sound Alarm</span>
+                    </button>
+                    <button onClick={() => speak('CO2 सिलेंडर तैयार!', 'CO2 Extinguisher Selected!')} className="p-2.5 rounded-xl border border-sky-200 bg-sky-50 font-bold flex items-center gap-2 text-sky-900">
+                      <span>🧯 CO2 Extinguisher</span>
+                    </button>
+                    <button onClick={() => speak('सुरक्षित निकास B चुना गया।', 'Safe Exit B chosen.')} className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 font-bold flex items-center gap-2 text-emerald-900">
+                      <span>🟢 Exit B (Safe Lifeline)</span>
+                    </button>
+                    <button onClick={() => setAlertMsg('❌ चेतावनी: Exit A ब्लॉक है (CO 380 ppm धुआं)!')} className="p-2.5 rounded-xl border border-red-200 bg-red-50 font-bold flex items-center gap-2 text-red-900">
+                      <span>🔴 Exit A (Blocked Danger)</span>
+                    </button>
+                  </div>
                 </div>
+
+                {/* FINISH & EVALUATE IN ENGINE CTA */}
+                <button 
+                  onClick={() => setTab('assessment')} 
+                  className="w-full h-12 rounded-xl flex items-center justify-center gap-2 font-bold bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-slate-950 text-sm tracking-wide shadow-md transition"
+                >
+                  FINISH & EVALUATE IN ENGINE
+                </button>
               </div>
             )}
 
