@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --industrial-bg: #F8FAFC;
+  --industrial-card: #FFFFFF;
+  --industrial-border: #E2E8F0;
+  --industrial-text: #0F172A;
+  --industrial-amber: #F59E0B;
+  --industrial-danger: #DC2626;
+}
+
+body {
+  margin: 0;
+  background-color: var(--industrial-bg);
+  color: var(--industrial-text);
+  -webkit-font-smoothing: antialiased;
+}

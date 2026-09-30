@@ -1,15 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
-export interface HazardItem {
-  id: 'electrical' | 'fuel' | 'gas' | 'chemical';
-  title: string;
-  icon: string;
-  code: string;
-  warning: string;
-  steps: { num: number; title: string; sub: string }[];
-}
+// ============================================================================
+// SurakshaAR: Minimal, Visual-First Industrial Safety & Real Camera AR
+// Compliant with DGMS & OSHA Standards
+// ============================================================================
 
-export const HAZARDS: HazardItem[] = [
+const HAZARDS = [
   {
     id: 'electrical',
     title: 'Electrical',
@@ -64,15 +60,15 @@ export const HAZARDS: HazardItem[] = [
   }
 ];
 
-export const SurakshaARApp: React.FC = () => {
-  const [selectedId, setSelectedId] = useState<HazardItem['id']>('electrical');
-  const [cameraActive, setCameraActive] = useState<boolean>(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [stepIndex, setStepIndex] = useState<number>(0);
-  const [isResolved, setIsResolved] = useState<boolean>(false);
+export default function App() {
+  const [selectedId, setSelectedId] = useState('electrical');
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [isResolved, setIsResolved] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
   const currentHazard = useMemo(() => {
     return HAZARDS.find((h) => h.id === selectedId) || HAZARDS[0];
@@ -83,6 +79,7 @@ export const SurakshaARApp: React.FC = () => {
     return Math.max(0, 100 - stepIndex * 25);
   }, [stepIndex, isResolved]);
 
+  // Camera Management
   const startCamera = async () => {
     setCameraError(null);
     try {
@@ -92,10 +89,14 @@ export const SurakshaARApp: React.FC = () => {
         throw new Error('Camera not supported in this browser.');
       }
 
-      let stream: MediaStream;
+      let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
           audio: false
         });
       } catch {
@@ -110,7 +111,7 @@ export const SurakshaARApp: React.FC = () => {
       setCameraActive(true);
       setStepIndex(0);
       setIsResolved(false);
-    } catch {
+    } catch (err) {
       setCameraError('Camera permission denied. Please allow camera access in browser settings.');
       setCameraActive(false);
     }
@@ -156,29 +157,41 @@ export const SurakshaARApp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans flex flex-col justify-between max-w-md mx-auto shadow-2xl relative border-x border-[#E2E8F0]">
+      {/* ====================================================================
+          1. HOME SCREEN (MINIMAL & ZERO CLUTTER)
+          ==================================================================== */}
       {!cameraActive ? (
         <div className="flex-1 flex flex-col justify-between p-4 min-h-screen">
+          {/* Header */}
           <header className="flex items-center justify-between pt-1 pb-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-black shadow-xs">
-                🛡️
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
               </div>
               <h1 className="text-lg font-black tracking-tight text-slate-900">SurakshaAR</h1>
             </div>
+
             <span className="text-[11px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
               DGMS
             </span>
           </header>
 
+          {/* Camera Error Alert */}
           {cameraError && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center space-y-2">
               <p className="text-xs text-red-700 font-semibold">{cameraError}</p>
-              <button onClick={startCamera} className="w-full h-10 rounded-lg bg-red-600 text-white font-bold text-xs uppercase">
+              <button
+                onClick={startCamera}
+                className="w-full h-10 rounded-lg bg-red-600 text-white font-bold text-xs uppercase"
+              >
                 Retry Camera
               </button>
             </div>
           )}
 
+          {/* Symmetrical 2x2 Hazard Selector */}
           <div className="my-auto py-2 space-y-3">
             <div className="grid grid-cols-2 gap-3.5">
               {HAZARDS.map((h) => {
@@ -206,11 +219,13 @@ export const SurakshaARApp: React.FC = () => {
               })}
             </div>
 
+            {/* Minimal Hazard Warning Chip (Single 1-Line) */}
             <div className="bg-amber-50 border border-amber-200 text-amber-950 px-3.5 py-2.5 rounded-xl flex items-center justify-center text-xs font-semibold text-center shadow-xs">
               <span className="truncate">{currentHazard.warning}</span>
             </div>
           </div>
 
+          {/* Sticky Primary CTA (56px Height, Thumb-Friendly) */}
           <div className="pt-3 pb-1">
             <button
               onClick={startCamera}
@@ -221,36 +236,58 @@ export const SurakshaARApp: React.FC = () => {
           </div>
         </div>
       ) : (
+        /* ====================================================================
+            2. LIVE CAMERA VIEW (UNCLUTTERED HUD OVERLAY)
+            ==================================================================== */
         <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col justify-between">
-          <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover z-0" />
+          {/* Hardware Video Element */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover z-0"
+          />
 
+          {/* Transparent Floating Header Bar */}
           <header className="relative z-10 p-4 flex items-center justify-between">
+            {/* Active Hazard Tag */}
             <div className="bg-black/60 backdrop-blur-md text-white font-bold text-xs px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2 whitespace-nowrap shadow-md">
               <span>{currentHazard.icon}</span>
               <span>{currentHazard.title}</span>
             </div>
+
+            {/* Circular Exit Button */}
             <button
               onClick={stopCamera}
               className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 flex items-center justify-center font-bold text-sm hover:bg-black/80 transition active:scale-90 shadow-md"
+              title="Close Camera"
+              aria-label="Close Camera"
             >
               ✕
             </button>
           </header>
 
+          {/* Center Viewport: Centered Reticle with Pulsating Hazard */}
           <div className="relative z-10 flex-1 flex items-center justify-center pointer-events-none">
             <div className="relative flex items-center justify-center w-40 h-40">
+              {/* Corner brackets */}
               <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-amber-400" />
               <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-amber-400" />
               <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-amber-400" />
               <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-amber-400" />
 
+              {/* Pulsating Target Circle & Scaling Icon */}
               <div
                 className={`w-28 h-28 rounded-full border-2 border-dashed flex items-center justify-center transition-all duration-300 ${
                   isResolved ? 'border-emerald-400 bg-emerald-950/40' : 'border-amber-400/80 animate-pulse'
                 }`}
               >
                 {!isResolved ? (
-                  <div className="transition-all duration-300 text-4xl" style={{ transform: `scale(${Math.max(0.3, riskPercent / 100)})` }}>
+                  <div
+                    className="transition-all duration-300 flex items-center justify-center text-4xl"
+                    style={{ transform: `scale(${Math.max(0.3, riskPercent / 100)})` }}
+                  >
                     {currentHazard.icon}
                   </div>
                 ) : (
@@ -260,8 +297,11 @@ export const SurakshaARApp: React.FC = () => {
             </div>
           </div>
 
+          {/* Floating Bottom Action Sheet */}
           <div className="relative z-10 bg-white rounded-t-3xl shadow-2xl p-5 border-t border-slate-200 space-y-4">
+            {/* Top Sheet: Progress Dots (● ○ ○ ○) & Risk Meter */}
             <div className="flex items-center justify-between">
+              {/* Step Dots */}
               <div className="flex items-center gap-2">
                 {[0, 1, 2, 3].map((idx) => {
                   const isDone = isResolved || idx < stepIndex;
@@ -281,6 +321,7 @@ export const SurakshaARApp: React.FC = () => {
                 })}
               </div>
 
+              {/* Risk Meter Badge */}
               <span
                 className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
                   riskPercent === 0
@@ -294,6 +335,7 @@ export const SurakshaARApp: React.FC = () => {
               </span>
             </div>
 
+            {/* Action Content */}
             {!isResolved ? (
               <div className="space-y-3">
                 <div>
@@ -305,6 +347,7 @@ export const SurakshaARApp: React.FC = () => {
                   </p>
                 </div>
 
+                {/* Primary Action Button (52px height) */}
                 <button
                   onClick={handleAdvance}
                   className="w-full h-[52px] min-h-[52px] bg-[#F59E0B] hover:bg-amber-500 active:scale-[0.98] text-[#0F172A] font-black text-sm tracking-wider uppercase rounded-xl shadow-md transition flex items-center justify-center gap-2"
@@ -313,6 +356,7 @@ export const SurakshaARApp: React.FC = () => {
                 </button>
               </div>
             ) : (
+              /* Success / Resolution State */
               <div className="text-center space-y-3 py-1">
                 <div>
                   <h2 className="text-base font-black text-emerald-700 uppercase tracking-wide">
@@ -344,6 +388,4 @@ export const SurakshaARApp: React.FC = () => {
       )}
     </div>
   );
-};
-
-export default SurakshaARApp;
+}
