@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 export interface HazardItem {
   id: 'electrical' | 'fuel' | 'gas' | 'chemical';
@@ -68,8 +68,10 @@ export const SurakshaARApp: React.FC = () => {
   const [selectedId, setSelectedId] = useState<HazardItem['id']>('electrical');
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isStreamingLive, setIsStreamingLive] = useState<boolean>(false);
   const [stepIndex, setStepIndex] = useState<number>(0);
   const [isResolved, setIsResolved] = useState<boolean>(false);
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -83,55 +85,113 @@ export const SurakshaARApp: React.FC = () => {
     return Math.max(0, 100 - stepIndex * 25);
   }, [stepIndex, isResolved]);
 
-  const startCamera = async () => {
-    setCameraError(null);
-    try {
-      stopCamera();
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera not supported in this browser.');
-      }
-
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      }
-
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
-      }
-      setCameraActive(true);
-      setStepIndex(0);
-      setIsResolved(false);
-    } catch {
-      setCameraError('Camera permission denied. Please allow camera access in browser settings.');
-      setCameraActive(false);
-    }
-  };
-
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => {
-        try { t.stop(); } catch {}
+      streamRef.current.getTracks().forEach((track) => {
+        try { track.stop(); } catch {}
       });
       streamRef.current = null;
     }
+    setActiveStream(null);
+    setIsStreamingLive(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
+  }, []);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setIsStreamingLive(false);
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera API is not supported in this browser.');
+      return;
+    }
+
+    const primaryConstraints: MediaStreamConstraints = {
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    };
+
+    let stream: MediaStream | null = null;
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+    } catch {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch {
+        setCameraError('Camera access blocked. Please allow camera permissions in browser.');
+        setCameraActive(false);
+        return;
+      }
+    }
+
+    if (stream) {
+      streamRef.current = stream;
+      setActiveStream(stream);
+      setCameraActive(true);
+      setStepIndex(0);
+      setIsResolved(false);
+    }
   };
 
   useEffect(() => {
+    if (!cameraActive || !activeStream) return;
+
+    let isMounted = true;
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.srcObject !== activeStream) {
+      video.srcObject = activeStream;
+    }
+
+    const handleLoadedMetadata = () => {
+      if (!isMounted) return;
+      video.play().catch(() => {});
+    };
+
+    const handlePlaying = () => {
+      if (!isMounted) return;
+      setIsStreamingLive(true);
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('playing', handlePlaying);
+
+    const fallbackTimer = setTimeout(() => {
+      if (video && (video.paused || video.videoWidth === 0)) {
+        video.play().catch(() => {});
+      }
+    }, 800);
+
+    const watchdogTimer = setTimeout(() => {
+      if (video && video.videoWidth > 0) {
+        setIsStreamingLive(true);
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(fallbackTimer);
+      clearTimeout(watchdogTimer);
+      if (video) {
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        video.removeEventListener('playing', handlePlaying);
+      }
+    };
+  }, [cameraActive, activeStream]);
+
+  useEffect(() => {
     return () => stopCamera();
-  }, []);
+  }, [stopCamera]);
 
   const handleAdvance = () => {
     if (stepIndex < 3) {
@@ -174,7 +234,7 @@ export const SurakshaARApp: React.FC = () => {
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center space-y-2">
               <p className="text-xs text-red-700 font-semibold">{cameraError}</p>
               <button onClick={startCamera} className="w-full h-10 rounded-lg bg-red-600 text-white font-bold text-xs uppercase">
-                Retry Camera
+                Retry Camera Access
               </button>
             </div>
           )}
@@ -224,43 +284,53 @@ export const SurakshaARApp: React.FC = () => {
         <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col justify-between">
           <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover z-0" />
 
-          <header className="relative z-10 p-4 flex items-center justify-between">
-            <div className="bg-black/60 backdrop-blur-md text-white font-bold text-xs px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2 whitespace-nowrap shadow-md">
-              <span>{currentHazard.icon}</span>
-              <span>{currentHazard.title}</span>
+          <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none z-10" />
+
+          <header className="relative z-20 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="bg-black/70 backdrop-blur-md text-white font-bold text-xs px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2 whitespace-nowrap shadow-md">
+                <span>{currentHazard.icon}</span>
+                <span>{currentHazard.title}</span>
+              </div>
+              <div className="bg-black/70 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/20 flex items-center gap-1.5 shadow-md">
+                <span className={`w-2 h-2 rounded-full transition-all ${isStreamingLive ? 'bg-emerald-400 animate-pulse ring-2 ring-emerald-400/40' : 'bg-amber-400 animate-ping'}`} />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                  {isStreamingLive ? 'Camera Active' : 'Connecting...'}
+                </span>
+              </div>
             </div>
             <button
               onClick={stopCamera}
-              className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 flex items-center justify-center font-bold text-sm hover:bg-black/80 transition active:scale-90 shadow-md"
+              className="w-9 h-9 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/20 flex items-center justify-center font-bold text-sm hover:bg-black/90 transition active:scale-90 shadow-md"
             >
               ✕
             </button>
           </header>
 
           <div className="relative z-10 flex-1 flex items-center justify-center pointer-events-none">
-            <div className="relative flex items-center justify-center w-40 h-40">
-              <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-amber-400" />
-              <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-amber-400" />
-              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-amber-400" />
-              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-amber-400" />
+            <div className="relative flex items-center justify-center w-44 h-44">
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-amber-400 shadow-sm" />
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-amber-400 shadow-sm" />
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-amber-400 shadow-sm" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-amber-400 shadow-sm" />
 
               <div
-                className={`w-28 h-28 rounded-full border-2 border-dashed flex items-center justify-center transition-all duration-300 ${
-                  isResolved ? 'border-emerald-400 bg-emerald-950/40' : 'border-amber-400/80 animate-pulse'
+                className={`w-32 h-32 rounded-full border-2 border-dashed flex items-center justify-center transition-all duration-300 ${
+                  isResolved ? 'border-emerald-400 bg-emerald-950/50 backdrop-blur-xs' : 'border-amber-400/90 bg-black/25 backdrop-blur-xs animate-pulse'
                 }`}
               >
                 {!isResolved ? (
-                  <div className="transition-all duration-300 text-4xl" style={{ transform: `scale(${Math.max(0.3, riskPercent / 100)})` }}>
+                  <div className="transition-all duration-300 text-5xl filter drop-shadow-[0_0_16px_rgba(245,158,11,0.9)]" style={{ transform: `scale(${Math.max(0.35, riskPercent / 100)})` }}>
                     {currentHazard.icon}
                   </div>
                 ) : (
-                  <span className="text-3xl text-emerald-400 font-black">✓</span>
+                  <span className="text-4xl text-emerald-400 font-black drop-shadow-md">✓</span>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="relative z-10 bg-white rounded-t-3xl shadow-2xl p-5 border-t border-slate-200 space-y-4">
+          <div className="relative z-20 bg-white rounded-t-3xl shadow-2xl p-5 border-t border-slate-200 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {[0, 1, 2, 3].map((idx) => {
@@ -282,7 +352,7 @@ export const SurakshaARApp: React.FC = () => {
               </div>
 
               <span
-                className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${
                   riskPercent === 0
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                     : riskPercent <= 50

@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 // ============================================================================
-// SurakshaAR: Minimal, Visual-First Industrial Safety & Real Camera AR
-// Compliant with DGMS & OSHA Standards
+// SurakshaAR: Industrial Safety & Bulletproof Real Camera AR View
 // ============================================================================
 
 const HAZARDS = [
@@ -64,8 +63,10 @@ export default function App() {
   const [selectedId, setSelectedId] = useState('electrical');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
+  const [isStreamingLive, setIsStreamingLive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [isResolved, setIsResolved] = useState(false);
+  const [activeStream, setActiveStream] = useState(null);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -79,60 +80,144 @@ export default function App() {
     return Math.max(0, 100 - stepIndex * 25);
   }, [stepIndex, isResolved]);
 
-  // Camera Management
-  const startCamera = async () => {
-    setCameraError(null);
-    try {
-      stopCamera();
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera not supported in this browser.');
-      }
-
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      }
-
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
-      }
-      setCameraActive(true);
-      setStepIndex(0);
-      setIsResolved(false);
-    } catch (err) {
-      setCameraError('Camera permission denied. Please allow camera access in browser settings.');
-      setCameraActive(false);
-    }
-  };
-
-  const stopCamera = () => {
+  // Clean and release camera tracks
+  const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => {
-        try { t.stop(); } catch {}
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.error('Error stopping track:', e);
+        }
       });
       streamRef.current = null;
     }
+    setActiveStream(null);
+    setIsStreamingLive(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
+  }, []);
+
+  // 1. HARDWARE CAMERA INITIALIZATION (LAPTOP / DESKTOP / MOBILE COMPLIANT)
+  const startCamera = async () => {
+    setCameraError(null);
+    setIsStreamingLive(false);
+
+    // Stop any existing stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera API is not supported in this browser.');
+      return;
+    }
+
+    // Soft preference for environment camera (auto-fallbacks on laptops/MacBooks)
+    const primaryConstraints = {
+      video: {
+        facingMode: 'environment', // Soft preference (never use exact: "environment")
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+
+    let stream = null;
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+    } catch (primaryErr) {
+      console.warn('Environment camera constraint failed, retrying with flexible constraints:', primaryErr);
+      try {
+        // Universal fallback for webcams / MacBook FaceTime cameras
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      } catch (fallbackErr) {
+        console.error('All camera attempts failed:', fallbackErr);
+        setCameraError(
+          'Camera access blocked or device unavailable. Please allow camera permissions in your browser.'
+        );
+        setCameraActive(false);
+        return;
+      }
+    }
+
+    if (stream) {
+      streamRef.current = stream;
+      setActiveStream(stream);
+      // Switch view mode so <video> element mounts in DOM
+      setCameraActive(true);
+      setStepIndex(0);
+      setIsResolved(false);
+    }
   };
 
+  // 2. BULLETPROOF STREAM ATTACH & AUTOPLAY EFFECT
+  // Solves React mounting race condition where videoRef was null during getUserMedia
+  useEffect(() => {
+    if (!cameraActive || !activeStream) return;
+
+    let isMounted = true;
+    const video = videoRef.current;
+
+    if (!video) return;
+
+    // Attach stream directly
+    if (video.srcObject !== activeStream) {
+      video.srcObject = activeStream;
+    }
+
+    const handleLoadedMetadata = () => {
+      if (!isMounted) return;
+      video.play().catch((err) => {
+        console.warn('Autoplay failed, awaiting user interaction:', err);
+      });
+    };
+
+    const handlePlaying = () => {
+      if (!isMounted) return;
+      setIsStreamingLive(true);
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('playing', handlePlaying);
+
+    // Fallback: Check if video is playing after 800ms
+    const fallbackTimer = setTimeout(() => {
+      if (video && (video.paused || video.videoWidth === 0)) {
+        console.log('Triggering fallback video play...');
+        video.play().catch(() => {});
+      }
+    }, 800);
+
+    // Secondary watchdog check after 2 seconds
+    const watchdogTimer = setTimeout(() => {
+      if (video && video.videoWidth > 0) {
+        setIsStreamingLive(true);
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(fallbackTimer);
+      clearTimeout(watchdogTimer);
+      if (video) {
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        video.removeEventListener('playing', handlePlaying);
+      }
+    };
+  }, [cameraActive, activeStream]);
+
+  // Clean up on component unmount
   useEffect(() => {
     return () => stopCamera();
-  }, []);
+  }, [stopCamera]);
 
   const handleAdvance = () => {
     if (stepIndex < 3) {
@@ -158,7 +243,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans flex flex-col justify-between max-w-md mx-auto shadow-2xl relative border-x border-[#E2E8F0]">
       {/* ====================================================================
-          1. HOME SCREEN (MINIMAL & ZERO CLUTTER)
+          1. HOME SCREEN (CLEAN, MINIMAL & ERGONOMIC)
           ==================================================================== */}
       {!cameraActive ? (
         <div className="flex-1 flex flex-col justify-between p-4 min-h-screen">
@@ -186,7 +271,7 @@ export default function App() {
                 onClick={startCamera}
                 className="w-full h-10 rounded-lg bg-red-600 text-white font-bold text-xs uppercase"
               >
-                Retry Camera
+                Retry Camera Access
               </button>
             </div>
           )}
@@ -219,7 +304,7 @@ export default function App() {
               })}
             </div>
 
-            {/* Minimal Hazard Warning Chip (Single 1-Line) */}
+            {/* Minimal Hazard Warning Chip */}
             <div className="bg-amber-50 border border-amber-200 text-amber-950 px-3.5 py-2.5 rounded-xl flex items-center justify-center text-xs font-semibold text-center shadow-xs">
               <span className="truncate">{currentHazard.warning}</span>
             </div>
@@ -237,10 +322,10 @@ export default function App() {
         </div>
       ) : (
         /* ====================================================================
-            2. LIVE CAMERA VIEW (UNCLUTTERED HUD OVERLAY)
+            2. LIVE CAMERA VIEW (FIXED Z-INDEX, AUTOPLAY & FEED INDICATOR)
             ==================================================================== */
         <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col justify-between">
-          {/* Hardware Video Element */}
+          {/* Native HTML5 Video Element mounted to live MediaStream at z-0 */}
           <video
             ref={videoRef}
             autoPlay
@@ -249,18 +334,37 @@ export default function App() {
             className="absolute inset-0 w-full h-full object-cover z-0"
           />
 
-          {/* Transparent Floating Header Bar */}
-          <header className="relative z-10 p-4 flex items-center justify-between">
-            {/* Active Hazard Tag */}
-            <div className="bg-black/60 backdrop-blur-md text-white font-bold text-xs px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2 whitespace-nowrap shadow-md">
-              <span>{currentHazard.icon}</span>
-              <span>{currentHazard.title}</span>
+          {/* Dark scrim overlay behind header for text contrast */}
+          <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none z-10" />
+
+          {/* 3. FLOATING TOP HEADER BAR (Z-20) */}
+          <header className="relative z-20 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {/* Active Hazard Tag */}
+              <div className="bg-black/70 backdrop-blur-md text-white font-bold text-xs px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2 whitespace-nowrap shadow-md">
+                <span>{currentHazard.icon}</span>
+                <span>{currentHazard.title}</span>
+              </div>
+
+              {/* 4. LIVE FEED INDICATOR */}
+              <div className="bg-black/70 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/20 flex items-center gap-1.5 shadow-md">
+                <span
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    isStreamingLive
+                      ? 'bg-emerald-400 animate-pulse ring-2 ring-emerald-400/40'
+                      : 'bg-amber-400 animate-ping'
+                  }`}
+                />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                  {isStreamingLive ? 'Camera Active' : 'Connecting...'}
+                </span>
+              </div>
             </div>
 
             {/* Circular Exit Button */}
             <button
               onClick={stopCamera}
-              className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 flex items-center justify-center font-bold text-sm hover:bg-black/80 transition active:scale-90 shadow-md"
+              className="w-9 h-9 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/20 flex items-center justify-center font-bold text-sm hover:bg-black/90 transition active:scale-90 shadow-md"
               title="Close Camera"
               aria-label="Close Camera"
             >
@@ -268,38 +372,40 @@ export default function App() {
             </button>
           </header>
 
-          {/* Center Viewport: Centered Reticle with Pulsating Hazard */}
+          {/* 3. CENTER VIEWPORT: TARGETING RETICLE & SCALING HAZARD ICON (Z-10) */}
           <div className="relative z-10 flex-1 flex items-center justify-center pointer-events-none">
-            <div className="relative flex items-center justify-center w-40 h-40">
-              {/* Corner brackets */}
-              <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-amber-400" />
-              <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-amber-400" />
-              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-amber-400" />
-              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-amber-400" />
+            <div className="relative flex items-center justify-center w-44 h-44">
+              {/* 4 Corner Crosshairs */}
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-amber-400 shadow-sm" />
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-amber-400 shadow-sm" />
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-amber-400 shadow-sm" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-amber-400 shadow-sm" />
 
-              {/* Pulsating Target Circle & Scaling Icon */}
+              {/* Pulsating Target Circle & Vivid Hazard Icon */}
               <div
-                className={`w-28 h-28 rounded-full border-2 border-dashed flex items-center justify-center transition-all duration-300 ${
-                  isResolved ? 'border-emerald-400 bg-emerald-950/40' : 'border-amber-400/80 animate-pulse'
+                className={`w-32 h-32 rounded-full border-2 border-dashed flex items-center justify-center transition-all duration-300 ${
+                  isResolved
+                    ? 'border-emerald-400 bg-emerald-950/50 backdrop-blur-xs'
+                    : 'border-amber-400/90 bg-black/25 backdrop-blur-xs animate-pulse'
                 }`}
               >
                 {!isResolved ? (
                   <div
-                    className="transition-all duration-300 flex items-center justify-center text-4xl"
-                    style={{ transform: `scale(${Math.max(0.3, riskPercent / 100)})` }}
+                    className="transition-all duration-300 flex items-center justify-center text-5xl filter drop-shadow-[0_0_16px_rgba(245,158,11,0.9)]"
+                    style={{ transform: `scale(${Math.max(0.35, riskPercent / 100)})` }}
                   >
                     {currentHazard.icon}
                   </div>
                 ) : (
-                  <span className="text-3xl text-emerald-400 font-black">✓</span>
+                  <span className="text-4xl text-emerald-400 font-black drop-shadow-md">✓</span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Floating Bottom Action Sheet */}
-          <div className="relative z-10 bg-white rounded-t-3xl shadow-2xl p-5 border-t border-slate-200 space-y-4">
-            {/* Top Sheet: Progress Dots (● ○ ○ ○) & Risk Meter */}
+          {/* 3. FLOATING BOTTOM ACTION SHEET (Z-20 RELATIVE) */}
+          <div className="relative z-20 bg-white rounded-t-3xl shadow-2xl p-5 border-t border-slate-200 space-y-4">
+            {/* Top of Sheet: Progress Dots (● ○ ○ ○) & Risk Meter */}
             <div className="flex items-center justify-between">
               {/* Step Dots */}
               <div className="flex items-center gap-2">
@@ -323,7 +429,7 @@ export default function App() {
 
               {/* Risk Meter Badge */}
               <span
-                className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${
                   riskPercent === 0
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                     : riskPercent <= 50
