@@ -18,8 +18,11 @@ import {
   Sparkles,
   ArrowLeft,
   Award,
-  Database
+  Database,
+  Camera,
+  Crosshair
 } from 'lucide-react';
+import { ARFireResponseAssistant } from './ARFireResponseAssistant';
 
 // ==========================================
 // 1. DATA MODELS & TYPES
@@ -499,7 +502,7 @@ const SAFETY_MODULES: SafetyModule[] = [
 
 export const SurakshaARApp: React.FC = () => {
   // Navigation & Screen States
-  const [currentScreen, setCurrentScreen] = useState<'auth' | 'home' | 'drill' | 'result'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'auth' | 'home' | 'drill' | 'result' | 'ar_fire_drill'>('home');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('en');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
@@ -815,6 +818,30 @@ export const SurakshaARApp: React.FC = () => {
               <span className="text-[11px] font-semibold text-amber-700">DGMS Certified</span>
             </div>
 
+            {/* Live AR Camera Fire Response Assistant Hero Banner */}
+            <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-4 text-slate-950 shadow-md flex items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1 bg-black/20 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                  <Camera className="w-3 h-3 text-yellow-300" />
+                  <span>Real-Time AR Camera Mode</span>
+                </div>
+                <h3 className="text-sm font-black text-slate-950 leading-tight">
+                  Live Fire Response Assistant
+                </h3>
+                <p className="text-[11px] text-slate-900 font-medium">
+                  Scan environment, isolate 440V power, pull pin, and spray CO2.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setCurrentScreen('ar_fire_drill')}
+                className="shrink-0 px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 text-amber-400 font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition"
+              >
+                <span>Launch AR</span>
+                <ChevronRight className="w-4 h-4 text-amber-400" />
+              </button>
+            </div>
+
             {/* 3 Core Cards */}
             <div className="space-y-3">
               {SAFETY_MODULES.map(module => {
@@ -843,15 +870,27 @@ export const SurakshaARApp: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs text-slate-400 font-medium">5 Practical Scenarios</span>
-                      <button
-                        onClick={() => handleStartDrill(module)}
-                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-2xs transition"
-                      >
-                        <span>Start Practical Drill</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span className="text-xs text-slate-400 font-medium">5 Scenarios</span>
+                      <div className="flex items-center gap-2">
+                        {module.id === 'module_fire' && (
+                          <button
+                            onClick={() => setCurrentScreen('ar_fire_drill')}
+                            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1 transition"
+                            title="Open Camera AR Drill"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Live AR</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleStartDrill(module)}
+                          className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-2xs transition"
+                        >
+                          <span>Drill</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1019,6 +1058,23 @@ export const SurakshaARApp: React.FC = () => {
             >
               <span>Return to Safety Modules</span>
             </button>
+          </div>
+        )}
+
+        {/* --------------------------------------
+            SCREEN 5: REAL-TIME AR FIRE RESPONSE ASSISTANT
+            -------------------------------------- */}
+        {currentScreen === 'ar_fire_drill' && (
+          <div className="-mx-4 -my-4 h-[calc(100vh-110px)] min-h-[580px]">
+            <ARFireResponseAssistant
+              language={selectedLanguage}
+              onBack={() => setCurrentScreen('home')}
+              onProceedToAssessment={() => {
+                setActiveModule(SAFETY_MODULES[0]);
+                setScore(5);
+                setCurrentScreen('result');
+              }}
+            />
           </div>
         )}
       </main>
