@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import HomeDashboard from './HomeDashboard';
+import ARTrainingModule from './ARTrainingModule';
 
 // ============================================================================
 // SurakshaAR: Real-Time AI Computer Vision & Dual-Format Guidance Engine
@@ -18,6 +19,7 @@ const EXTINGUISHER_CLASSES = new Set([
 ]);
 
 export default function App() {
+  const [activeScreen, setActiveScreen] = useState('home'); // 'home' | 'ar-training' | 'ai-detector'
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [modelLoading, setModelLoading] = useState(true);
@@ -206,6 +208,7 @@ export default function App() {
     }
     setIsStreamingLive(false);
     setCameraActive(false);
+    setActiveScreen('home');
     setDetections([]);
     setHasFlame(false);
     setHasElectrical(false);
@@ -686,14 +689,22 @@ export default function App() {
       <canvas ref={processingCanvasRef} className="hidden" />
 
       {/* ====================================================================
-          1. PHASE 1: HOME DASHBOARD (PIXEL-PERFECT INDUSTRIAL SATHI UI)
+          1. NAVIGATION ROUTER (PHASE 1: HOME DASHBOARD | PHASE 2: AR TRAINING)
           ==================================================================== */}
-      {!cameraActive ? (
+      {activeScreen === 'ar-training' ? (
+        <ARTrainingModule
+          onBack={() => setActiveScreen('home')}
+          onComplete={() => setActiveScreen('home')}
+        />
+      ) : activeScreen === 'home' && !cameraActive ? (
         <HomeDashboard
           onNavigate={(screenKey) => {
             if (screenKey === 'ar-module') {
+              setActiveScreen('ar-training');
+            } else if (screenKey === 'ai-detector') {
               unlockSpeechEngine();
               startCamera();
+              setActiveScreen('ai-detector');
             }
           }}
         />
@@ -876,5 +887,5 @@ export default function App() {
   );
 }
 
-export { HomeDashboard };
+export { HomeDashboard, ARTrainingModule };
 
