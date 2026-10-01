@@ -28,6 +28,8 @@ export default function HomeDashboard({ onNavigate }) {
       if (onNavigate) onNavigate('ar-module');
     } else if (actionKey === 'safety-podcasts') {
       if (onNavigate) onNavigate('podcast');
+    } else if (actionKey === 'safety-flashcards') {
+      if (onNavigate) onNavigate('flashcards');
     } else {
       setActiveModal(actionKey);
     }

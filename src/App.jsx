@@ -4,6 +4,7 @@ import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import HomeDashboard from './HomeDashboard';
 import ARTrainingModule from './ARTrainingModule';
 import PodcastAudioLessons from './PodcastAudioLessons';
+import FlashcardsMistakes from './FlashcardsMistakes';
 
 // ============================================================================
 // SurakshaAR: Real-Time AI Computer Vision & Dual-Format Guidance Engine
@@ -692,11 +693,23 @@ export default function App() {
       {/* ====================================================================
           1. NAVIGATION ROUTER (PHASE 1: HOME DASHBOARD | PHASE 2: AR TRAINING)
           ==================================================================== */}
-      {activeScreen === 'podcast' ? (
+      {activeScreen === 'flashcards' ? (
+        <FlashcardsMistakes
+          onBack={() => setActiveScreen('podcast')}
+          onNavigate={(dest) => {
+            if (dest === 'certificates' || dest === 'home') {
+              setActiveScreen('home');
+            } else {
+              setActiveScreen(dest);
+            }
+          }}
+        />
+      ) : activeScreen === 'podcast' ? (
         <PodcastAudioLessons
           onBack={() => setActiveScreen('home')}
           onNavigate={(dest) => {
             if (dest === 'home') setActiveScreen('home');
+            else if (dest === 'flashcards') setActiveScreen('flashcards');
             else if (dest === 'ar-module') setActiveScreen('ar-training');
             else if (dest === 'ai-detector') {
               unlockSpeechEngine();
@@ -719,6 +732,8 @@ export default function App() {
               setActiveScreen('ar-training');
             } else if (screenKey === 'podcast') {
               setActiveScreen('podcast');
+            } else if (screenKey === 'flashcards') {
+              setActiveScreen('flashcards');
             } else if (screenKey === 'ai-detector') {
               unlockSpeechEngine();
               startCamera();
@@ -905,5 +920,5 @@ export default function App() {
   );
 }
 
-export { HomeDashboard, ARTrainingModule, PodcastAudioLessons };
+export { HomeDashboard, ARTrainingModule, PodcastAudioLessons, FlashcardsMistakes };
 
