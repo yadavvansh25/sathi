@@ -191,7 +191,29 @@ export default function ARTrainingModule({ onBack, onComplete }) {
     };
   }, []);
 
-  // 3. BULLETPROOF NATIVE SPEECH GUIDANCE DISPATCHER
+  // 1. Web Audio Hardware Wakeup: forces Chrome & macOS CoreAudio to wake audio device from sleep
+  const wakeAudioHardware = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.001; // sub-audible near-zero gain
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(0);
+      osc.stop(ctx.currentTime + 0.01);
+    } catch (e) {
+      console.warn("Audio hardware wakeup non-fatal error:", e);
+    }
+  }, []);
+
+  // 3. BULLETPROOF NATIVE SPEECH GUIDANCE DISPATCHER (CHROME / MACOS OPTIMIZED)
   const playVoiceGuidance = useCallback((textToSpeak, lang = 'hi-IN') => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       console.warn("Speech synthesis not supported.");
@@ -199,25 +221,39 @@ export default function ARTrainingModule({ onBack, onComplete }) {
     }
 
     try {
-      // Force resume if paused by browser (Critical for Chrome background pause)
+      // Step A: Wake hardware audio engine first
+      wakeAudioHardware();
+
+      // Step B: Clear any hung queues and force resume
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      activeUtteranceRef.current = utterance; // Prevent Chrome premature garbage collection
+      // Retain utterance on component ref AND global window to prevent Chrome V8 GC mid-speech
+      activeUtteranceRef.current = utterance;
+      if (typeof window !== 'undefined') {
+        window.activeUtterance = utterance;
+      }
       
       const allVoices = window.speechSynthesis.getVoices();
       let selectedVoice = null;
 
+      // Multi-tier Fallback Priority:
+      // 1. Hindi (hi-IN or name containing Hindi)
       if (lang.startsWith('hi')) {
-        selectedVoice = allVoices.find(v => v.lang === 'hi-IN' || v.lang.includes('hi') || (v.name && v.name.includes('Hindi')));
+        selectedVoice = allVoices.find(v => v.lang === 'hi-IN' || v.lang.includes('hi') || (v.name && v.name.toLowerCase().includes('hindi')));
       }
 
-      // Fallback to English if Hindi voice is not installed on the OS
+      // 2. Indian English (en-IN or name containing India)
       if (!selectedVoice) {
-        selectedVoice = allVoices.find(v => v.lang === 'en-IN' || v.lang.includes('en'));
+        selectedVoice = allVoices.find(v => v.lang === 'en-IN' || (v.name && v.name.toLowerCase().includes('india')));
+      }
+
+      // 3. System default or first available voice
+      if (!selectedVoice) {
+        selectedVoice = allVoices.find(v => v.default) || allVoices[0];
       }
 
       if (selectedVoice) {
@@ -225,7 +261,7 @@ export default function ARTrainingModule({ onBack, onComplete }) {
       }
 
       utterance.lang = selectedVoice ? selectedVoice.lang : (lang.startsWith('hi') ? 'hi-IN' : 'en-US');
-      utterance.rate = 0.95;
+      utterance.rate = 0.9;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
@@ -236,6 +272,7 @@ export default function ARTrainingModule({ onBack, onComplete }) {
       utterance.onend = () => {
         setIsSpeaking(false);
         activeUtteranceRef.current = null;
+        if (typeof window !== 'undefined') window.activeUtterance = null;
       };
       utterance.onerror = (e) => {
         if (e.error !== 'interrupted') {
@@ -243,6 +280,11 @@ export default function ARTrainingModule({ onBack, onComplete }) {
         }
         setIsSpeaking(false);
         activeUtteranceRef.current = null;
+        if (typeof window !== 'undefined') window.activeUtterance = null;
+        // Self-healing: resume synthesis queue
+        try {
+          window.speechSynthesis.resume();
+        } catch {}
       };
 
       window.speechSynthesis.speak(utterance);
@@ -250,8 +292,9 @@ export default function ARTrainingModule({ onBack, onComplete }) {
       console.error("Failed to speak:", err);
       setIsSpeaking(false);
       activeUtteranceRef.current = null;
+      if (typeof window !== 'undefined') window.activeUtterance = null;
     }
-  }, []);
+  }, [wakeAudioHardware]);
 
   // Helper to resolve text and language for current step
   const getStepNarration = useCallback(() => {
@@ -302,11 +345,26 @@ export default function ARTrainingModule({ onBack, onComplete }) {
 
   // STEP NAVIGATION CONTROLLERS
   const handleNextStep = () => {
-    unlockSpeechEngine();
+    wakeAudioHardware();
     setHazardInspected(false);
 
     if (currentStepIndex < STEPS_DATA.length - 1) {
-      setCurrentStepIndex((prev) => prev + 1);
+      const nextIdx = currentStepIndex + 1;
+      setCurrentStepIndex(nextIdx);
+      // Trigger voice instruction for the new step immediately
+      const nextStep = STEPS_DATA[nextIdx];
+      let text = nextStep.speechHi || nextStep.titleHi;
+      let targetLang = 'hi-IN';
+      if (language === 'en') {
+        text = nextStep.speechEn || nextStep.titleEn;
+        targetLang = 'en-IN';
+      } else if (language === 'sat') {
+        text = nextStep.speechSat || nextStep.titleSat;
+        targetLang = 'hi-IN';
+      }
+      setTimeout(() => {
+        playVoiceGuidance(text, targetLang);
+      }, 250);
     } else {
       setDrillCompleted(true);
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -438,28 +496,23 @@ export default function ARTrainingModule({ onBack, onComplete }) {
             )}
           </div>
 
-          {/* Audio Speaker Pill with Active Wave Animation */}
+          {/* Audio Speaker Pill with Active Wave & Ripple Animation */}
           <button
             onClick={() => {
               const { textToSpeak, targetLang } = getStepNarration();
               playVoiceGuidance(textToSpeak, targetLang);
             }}
-            className={`w-10 h-10 rounded-full border shadow-lg flex items-center justify-center transition active:scale-95 ${
+            className={`w-10 h-10 rounded-full border shadow-lg flex items-center justify-center transition active:scale-95 relative ${
               isSpeaking
-                ? 'bg-amber-500 border-amber-400 text-slate-950 font-black animate-pulse'
+                ? 'bg-amber-500 border-amber-400 text-slate-950 font-black animate-pulse ring-4 ring-amber-400/50'
                 : 'bg-white/95 backdrop-blur-md border-white/40 text-slate-800 hover:bg-white'
             }`}
             title="Play Audio Guidance"
           >
-            {isSpeaking ? (
-              <span className="text-sm">🔊</span>
-            ) : (
-              <svg className="w-5 h-5 text-slate-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-              </svg>
+            {isSpeaking && (
+              <span className="absolute -inset-1 rounded-full border-2 border-amber-400 animate-ping pointer-events-none" />
             )}
+            <span className="text-sm">{isSpeaking ? '🔊' : '🔈'}</span>
           </button>
         </div>
       </header>
@@ -547,18 +600,30 @@ export default function ARTrainingModule({ onBack, onComplete }) {
           ==================================================================== */}
       <div className="relative z-20 mx-4 mb-6">
         <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 shadow-2xl border border-slate-200/90 text-left space-y-3">
-          {/* Step Count & Audio Status Indicator */}
+          {/* Step Count & In-Card "सुनें (Listen)" Audio Trigger */}
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
               Step {currentStep.step} of {STEPS_DATA.length}
             </span>
 
-            {isSpeaking && (
-              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                <span className="text-[10px] font-bold">Narration Playing</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {/* In-Card Manual Listen Trigger Button */}
+              <button
+                onClick={() => {
+                  const { textToSpeak, targetLang } = getStepNarration();
+                  playVoiceGuidance(textToSpeak, targetLang);
+                }}
+                className={`px-3 py-1 rounded-full text-[11px] font-black border transition active:scale-90 flex items-center gap-1.5 shadow-xs ${
+                  isSpeaking
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse ring-2 ring-amber-400/40'
+                    : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                }`}
+                title="Tap to listen to this safety instruction"
+              >
+                <span>🔊</span>
+                <span>{isSpeaking ? 'बोल रहा है...' : 'सुनें (Listen)'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Primary Instruction Text (Daylight High-Contrast Bold) */}
