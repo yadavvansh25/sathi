@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
+import HomeDashboard from './HomeDashboard';
 
 // ============================================================================
 // SurakshaAR: Real-Time AI Computer Vision & Dual-Format Guidance Engine
@@ -685,97 +686,17 @@ export default function App() {
       <canvas ref={processingCanvasRef} className="hidden" />
 
       {/* ====================================================================
-          1. HOME SCREEN (MINIMAL & ZERO CLUTTER)
+          1. PHASE 1: HOME DASHBOARD (PIXEL-PERFECT INDUSTRIAL SATHI UI)
           ==================================================================== */}
       {!cameraActive ? (
-        <div className="flex-1 flex flex-col justify-between p-4 min-h-screen">
-          {/* Header */}
-          <header className="flex items-center justify-between pt-1 pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-black shadow-xs">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-lg font-black tracking-tight text-slate-900 leading-none">SurakshaAR</h1>
-                <span className="text-[10px] text-slate-500 font-bold">AI Computer Vision & Voice Engine</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              {modelLoading ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
-                  AI Loading...
-                </span>
-              ) : (
-                <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  AI Ready
-                </span>
-              )}
-            </div>
-          </header>
-
-          {/* Model or Camera Error Alert */}
-          {(cameraError || modelError) && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center space-y-2">
-              <p className="text-xs text-red-700 font-semibold">{cameraError || modelError}</p>
-              <button
-                onClick={startCamera}
-                className="w-full h-10 rounded-lg bg-red-600 text-white font-bold text-xs uppercase"
-              >
-                Retry Camera Access
-              </button>
-            </div>
-          )}
-
-          {/* Symmetrical 2x2 AI Capability Visual Grid */}
-          <div className="my-auto py-2 space-y-3">
-            <div className="grid grid-cols-2 gap-3.5">
-              <div className="flex flex-col items-center justify-center p-5 rounded-2xl border border-slate-200 bg-white shadow-xs min-h-[120px]">
-                <span className="text-3xl mb-2">⚡</span>
-                <span className="text-sm font-bold text-slate-900">Electrical AI</span>
-                <span className="text-[10px] text-slate-500 font-medium">Auto-Switchboard Detect</span>
-              </div>
-
-              <div className="flex flex-col items-center justify-center p-5 rounded-2xl border border-slate-200 bg-white shadow-xs min-h-[120px]">
-                <span className="text-3xl mb-2">🔥</span>
-                <span className="text-sm font-bold text-slate-900">Flame Pixel Scan</span>
-                <span className="text-[10px] text-slate-500 font-medium">Chromatic Luminance</span>
-              </div>
-
-              <div className="flex flex-col items-center justify-center p-5 rounded-2xl border border-slate-200 bg-white shadow-xs min-h-[120px]">
-                <span className="text-3xl mb-2">🧯</span>
-                <span className="text-sm font-bold text-slate-900">Extinguisher AI</span>
-                <span className="text-[10px] text-slate-500 font-medium">Tool Recognition</span>
-              </div>
-
-              <div className="flex flex-col items-center justify-center p-5 rounded-2xl border border-slate-200 bg-white shadow-xs min-h-[120px]">
-                <span className="text-3xl mb-2">🔊</span>
-                <span className="text-sm font-bold text-slate-900">Dual Voice HUD</span>
-                <span className="text-[10px] text-slate-500 font-medium">Hindi + English Audio</span>
-              </div>
-            </div>
-
-            {/* Status Information Chip */}
-            <div className="bg-amber-50 border border-amber-200 text-amber-950 px-3.5 py-2.5 rounded-xl flex items-center justify-center text-xs font-semibold text-center shadow-xs gap-2">
-              <span>{modelLoading ? '⏳ Loading MobileNet Neural Network...' : '✓ AI Vision & Native Voice Guidance Ready'}</span>
-            </div>
-          </div>
-
-          {/* Sticky Primary CTA (56px Height, Thumb-Friendly) */}
-          <div className="pt-3 pb-1">
-            <button
-              onClick={() => {
-                unlockSpeechEngine();
-                startCamera();
-              }}
-              className="w-full h-14 min-h-[56px] bg-[#F59E0B] hover:bg-amber-500 active:scale-[0.98] text-[#0F172A] font-black text-sm tracking-wider uppercase rounded-2xl shadow-lg transition flex items-center justify-center gap-2"
-            >
-              <span>📸 OPEN AI CAMERA & DETECT</span>
-            </button>
-          </div>
-        </div>
+        <HomeDashboard
+          onNavigate={(screenKey) => {
+            if (screenKey === 'ar-module') {
+              unlockSpeechEngine();
+              startCamera();
+            }
+          }}
+        />
       ) : (
         /* ====================================================================
             2. LIVE CAMERA VIEW (REAL-TIME TF.JS + DUAL VOICE HUD)
@@ -954,4 +875,6 @@ export default function App() {
     </div>
   );
 }
+
+export { HomeDashboard };
 
