@@ -5,6 +5,7 @@ import HomeDashboard from './HomeDashboard';
 import ARTrainingModule from './ARTrainingModule';
 import PodcastAudioLessons from './PodcastAudioLessons';
 import FlashcardsMistakes from './FlashcardsMistakes';
+import CertificatesModule from './CertificatesModule';
 
 // ============================================================================
 // SurakshaAR: Real-Time AI Computer Vision & Dual-Format Guidance Engine
@@ -693,11 +694,17 @@ export default function App() {
       {/* ====================================================================
           1. NAVIGATION ROUTER (PHASE 1: HOME DASHBOARD | PHASE 2: AR TRAINING)
           ==================================================================== */}
-      {activeScreen === 'flashcards' ? (
+      {activeScreen === 'certificates' ? (
+        <CertificatesModule
+          onBack={() => setActiveScreen('home')}
+        />
+      ) : activeScreen === 'flashcards' ? (
         <FlashcardsMistakes
           onBack={() => setActiveScreen('podcast')}
           onNavigate={(dest) => {
-            if (dest === 'certificates' || dest === 'home') {
+            if (dest === 'certificates') {
+              setActiveScreen('certificates');
+            } else if (dest === 'home') {
               setActiveScreen('home');
             } else {
               setActiveScreen(dest);
@@ -710,6 +717,7 @@ export default function App() {
           onNavigate={(dest) => {
             if (dest === 'home') setActiveScreen('home');
             else if (dest === 'flashcards') setActiveScreen('flashcards');
+            else if (dest === 'certificates') setActiveScreen('certificates');
             else if (dest === 'ar-module') setActiveScreen('ar-training');
             else if (dest === 'ai-detector') {
               unlockSpeechEngine();
@@ -734,6 +742,8 @@ export default function App() {
               setActiveScreen('podcast');
             } else if (screenKey === 'flashcards') {
               setActiveScreen('flashcards');
+            } else if (screenKey === 'certificates') {
+              setActiveScreen('certificates');
             } else if (screenKey === 'ai-detector') {
               unlockSpeechEngine();
               startCamera();
@@ -920,5 +930,5 @@ export default function App() {
   );
 }
 
-export { HomeDashboard, ARTrainingModule, PodcastAudioLessons, FlashcardsMistakes };
+export { HomeDashboard, ARTrainingModule, PodcastAudioLessons, FlashcardsMistakes, CertificatesModule };
 

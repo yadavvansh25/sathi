@@ -30,6 +30,8 @@ export default function HomeDashboard({ onNavigate }) {
       if (onNavigate) onNavigate('podcast');
     } else if (actionKey === 'safety-flashcards') {
       if (onNavigate) onNavigate('flashcards');
+    } else if (actionKey === 'certificates' || actionKey === 'view-certificates') {
+      if (onNavigate) onNavigate('certificates');
     } else {
       setActiveModal(actionKey);
     }
@@ -577,6 +579,16 @@ export default function HomeDashboard({ onNavigate }) {
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold">
                   <span>✓ Level 2 Safety Certified</span>
                 </div>
+
+                <button
+                  onClick={() => {
+                    setActiveModal(null);
+                    if (onNavigate) onNavigate('certificates');
+                  }}
+                  className="w-full mt-3 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
+                >
+                  <span>🏆 View My Certificates (4 Verified) ➔</span>
+                </button>
               </div>
             )}
 
