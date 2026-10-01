@@ -98,6 +98,7 @@ export default function ARTrainingModule({ onBack, onComplete }) {
   const streamRef = useRef(null);
   const voiceRef = useRef(null);
   const lastSpokenRef = useRef({ text: '', timestamp: 0 });
+  const activeUtteranceRef = useRef(null);
 
   const currentStep = STEPS_DATA[currentStepIndex];
 
@@ -164,7 +165,7 @@ export default function ARTrainingModule({ onBack, onComplete }) {
     };
   }, []);
 
-  // 2. AUDIO SYNTHESIS VOICE PREPARATION HOOK
+  // 2. AUDIO SYNTHESIS VOICE PREPARATION HOOK (CHROME ASYNC VOICES LISTENER)
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setSpeechSupported(false);
@@ -174,12 +175,7 @@ export default function ARTrainingModule({ onBack, onComplete }) {
     const loadVoices = () => {
       try {
         const voices = window.speechSynthesis.getVoices();
-        // Priority for Hindi or Indian English voice
-        const pref = voices.find((v) => v.lang === 'hi-IN' || v.lang.toLowerCase().includes('hi')) ||
-                     voices.find((v) => v.lang === 'en-IN' || v.name.toLowerCase().includes('india')) ||
-                     voices.find((v) => v.lang.startsWith('en')) ||
-                     voices[0];
-        voiceRef.current = pref;
+        voiceRef.current = voices;
       } catch (e) {
         console.warn('Voice retrieval error:', e);
       }
@@ -195,96 +191,113 @@ export default function ARTrainingModule({ onBack, onComplete }) {
     };
   }, []);
 
-  // 3. UNLOCK SPEECH ENGINE ON USER GESTURE
-  const unlockSpeechEngine = useCallback(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const primer = new SpeechSynthesisUtterance('');
-        primer.volume = 0;
-        window.speechSynthesis.speak(primer);
-        setAudioPrimed(true);
-      } catch (err) {
-        console.warn('Speech unlock error:', err);
-      }
-    }
-  }, []);
-
-  // 4. BULLETPROOF NATIVE SPEECH DISPATCHER
-  const speakInstruction = useCallback((force = false) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
-    unlockSpeechEngine();
-
-    // Select target speech text based on active language
-    let textToSpeak = currentStep.speechHi;
-    let targetLangCode = 'hi-IN';
-
-    if (language === 'en') {
-      textToSpeak = currentStep.speechEn;
-      targetLangCode = 'en-IN';
-    } else if (language === 'sat') {
-      // If voice supports Santali or Hindi phonetic fallback
-      textToSpeak = currentStep.speechSat;
-      targetLangCode = 'hi-IN';
-    }
-
-    const now = Date.now();
-    if (!force && lastSpokenRef.current.text === textToSpeak && (now - lastSpokenRef.current.timestamp) < 4000) {
+  // 3. BULLETPROOF NATIVE SPEECH GUIDANCE DISPATCHER
+  const playVoiceGuidance = useCallback((textToSpeak, lang = 'hi-IN') => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      console.warn("Speech synthesis not supported.");
       return;
     }
 
     try {
+      // Force resume if paused by browser (Critical for Chrome background pause)
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      if (voiceRef.current) {
-        utterance.voice = voiceRef.current;
+      activeUtteranceRef.current = utterance; // Prevent Chrome premature garbage collection
+      
+      const allVoices = window.speechSynthesis.getVoices();
+      let selectedVoice = null;
+
+      if (lang.startsWith('hi')) {
+        selectedVoice = allVoices.find(v => v.lang === 'hi-IN' || v.lang.includes('hi') || (v.name && v.name.includes('Hindi')));
       }
-      utterance.lang = targetLangCode;
+
+      // Fallback to English if Hindi voice is not installed on the OS
+      if (!selectedVoice) {
+        selectedVoice = allVoices.find(v => v.lang === 'en-IN' || v.lang.includes('en'));
+      }
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+
+      utterance.lang = selectedVoice ? selectedVoice.lang : (lang.startsWith('hi') ? 'hi-IN' : 'en-US');
       utterance.rate = 0.95;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
       utterance.onstart = () => {
+        console.log("🔊 Playing safety instruction:", textToSpeak);
         setIsSpeaking(true);
-        lastSpokenRef.current = { text: textToSpeak, timestamp: now };
       };
-
       utterance.onend = () => {
         setIsSpeaking(false);
+        activeUtteranceRef.current = null;
       };
-
       utterance.onerror = (e) => {
         if (e.error !== 'interrupted') {
-          console.warn('Speech synthesis error:', e);
+          console.error("SpeechSynthesis error:", e);
         }
         setIsSpeaking(false);
+        activeUtteranceRef.current = null;
       };
 
       window.speechSynthesis.speak(utterance);
     } catch (err) {
-      console.warn('Speech invocation failed:', err);
+      console.error("Failed to speak:", err);
       setIsSpeaking(false);
+      activeUtteranceRef.current = null;
     }
-  }, [currentStep, language, unlockSpeechEngine]);
+  }, []);
 
-  // Trigger speech narration automatically upon step advance
+  // Helper to resolve text and language for current step
+  const getStepNarration = useCallback(() => {
+    let textToSpeak = currentStep.speechHi || currentStep.titleHi;
+    let targetLang = 'hi-IN';
+
+    if (language === 'en') {
+      textToSpeak = currentStep.speechEn || currentStep.titleEn;
+      targetLang = 'en-IN';
+    } else if (language === 'sat') {
+      textToSpeak = currentStep.speechSat || currentStep.titleSat;
+      targetLang = 'hi-IN';
+    }
+
+    return { textToSpeak, targetLang };
+  }, [currentStep, language]);
+
+  // Trigger speech narration automatically upon step advance or language change
   useEffect(() => {
+    const { textToSpeak, targetLang } = getStepNarration();
+
     const timer = setTimeout(() => {
-      speakInstruction(true);
-    }, 450);
+      playVoiceGuidance(textToSpeak, targetLang);
+    }, 400);
 
     return () => clearTimeout(timer);
-  }, [currentStepIndex, language, speakInstruction]);
+  }, [currentStepIndex, language, getStepNarration, playVoiceGuidance]);
 
-  // Clean up on component unmount
+  // Clean up speech on component unmount
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
+  }, []);
+
+  // Speech engine unlock for user gestures
+  const unlockSpeechEngine = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      } catch {}
+    }
   }, []);
 
   // STEP NAVIGATION CONTROLLERS
@@ -313,16 +326,8 @@ export default function ARTrainingModule({ onBack, onComplete }) {
   const handleHazardInspect = () => {
     unlockSpeechEngine();
     setHazardInspected(true);
-    // Audio confirmation chirp
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        const confirmUtterance = new SpeechSynthesisUtterance(
-          language === 'hi' ? 'खतरा सत्यापित हुआ!' : language === 'sat' ? 'ᱵᱚᱛᱚᱨ ᱴᱷᱟᱹᱣᱠᱟᱹ ᱮᱱᱟ!' : 'Hazard Verified!'
-        );
-        confirmUtterance.rate = 1.1;
-        window.speechSynthesis.speak(confirmUtterance);
-      } catch {}
-    }
+    const confirmText = language === 'hi' ? 'खतरा सत्यापित हुआ!' : language === 'sat' ? 'ᱵᱚᱛᱚᱨ ᱴᱷᱟᱹᱣᱠᱟᱹ ᱮᱱᱟ!' : 'Hazard Verified!';
+    playVoiceGuidance(confirmText, language === 'en' ? 'en-IN' : 'hi-IN');
   };
 
   return (
@@ -435,7 +440,10 @@ export default function ARTrainingModule({ onBack, onComplete }) {
 
           {/* Audio Speaker Pill with Active Wave Animation */}
           <button
-            onClick={() => speakInstruction(true)}
+            onClick={() => {
+              const { textToSpeak, targetLang } = getStepNarration();
+              playVoiceGuidance(textToSpeak, targetLang);
+            }}
             className={`w-10 h-10 rounded-full border shadow-lg flex items-center justify-center transition active:scale-95 ${
               isSpeaking
                 ? 'bg-amber-500 border-amber-400 text-slate-950 font-black animate-pulse'

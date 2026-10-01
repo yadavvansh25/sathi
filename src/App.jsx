@@ -737,6 +737,7 @@ export default function App() {
         <HomeDashboard
           onNavigate={(screenKey) => {
             if (screenKey === 'ar-module') {
+              unlockSpeechEngine();
               setActiveScreen('ar-training');
             } else if (screenKey === 'podcast') {
               setActiveScreen('podcast');
