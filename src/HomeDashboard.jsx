@@ -15,7 +15,7 @@ export default function HomeDashboard({ onNavigate }) {
     if (tabKey === 'learn') {
       setActiveModal('learning-catalog');
     } else if (tabKey === 'audio') {
-      setActiveModal('safety-podcasts');
+      if (onNavigate) onNavigate('podcast');
     } else if (tabKey === 'progress') {
       setActiveModal('progress-report');
     } else if (tabKey === 'profile') {
@@ -26,6 +26,8 @@ export default function HomeDashboard({ onNavigate }) {
   const handleActionClick = (actionKey) => {
     if (actionKey === 'ar-module') {
       if (onNavigate) onNavigate('ar-module');
+    } else if (actionKey === 'safety-podcasts') {
+      if (onNavigate) onNavigate('podcast');
     } else {
       setActiveModal(actionKey);
     }

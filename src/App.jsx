@@ -3,6 +3,7 @@ import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import HomeDashboard from './HomeDashboard';
 import ARTrainingModule from './ARTrainingModule';
+import PodcastAudioLessons from './PodcastAudioLessons';
 
 // ============================================================================
 // SurakshaAR: Real-Time AI Computer Vision & Dual-Format Guidance Engine
@@ -691,16 +692,33 @@ export default function App() {
       {/* ====================================================================
           1. NAVIGATION ROUTER (PHASE 1: HOME DASHBOARD | PHASE 2: AR TRAINING)
           ==================================================================== */}
-      {activeScreen === 'ar-training' ? (
+      {activeScreen === 'podcast' ? (
+        <PodcastAudioLessons
+          onBack={() => setActiveScreen('home')}
+          onNavigate={(dest) => {
+            if (dest === 'home') setActiveScreen('home');
+            else if (dest === 'ar-module') setActiveScreen('ar-training');
+            else if (dest === 'ai-detector') {
+              unlockSpeechEngine();
+              startCamera();
+              setActiveScreen('ai-detector');
+            } else {
+              setActiveScreen(dest);
+            }
+          }}
+        />
+      ) : activeScreen === 'ar-training' ? (
         <ARTrainingModule
           onBack={() => setActiveScreen('home')}
-          onComplete={() => setActiveScreen('home')}
+          onComplete={() => setActiveScreen('podcast')}
         />
       ) : activeScreen === 'home' && !cameraActive ? (
         <HomeDashboard
           onNavigate={(screenKey) => {
             if (screenKey === 'ar-module') {
               setActiveScreen('ar-training');
+            } else if (screenKey === 'podcast') {
+              setActiveScreen('podcast');
             } else if (screenKey === 'ai-detector') {
               unlockSpeechEngine();
               startCamera();
@@ -887,5 +905,5 @@ export default function App() {
   );
 }
 
-export { HomeDashboard, ARTrainingModule };
+export { HomeDashboard, ARTrainingModule, PodcastAudioLessons };
 
