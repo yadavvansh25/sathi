@@ -12,6 +12,8 @@ const STEPS_DATA = [
     titleHi: 'डंप ट्रक के चारों ओर खतरों की पहचान करें।',
     titleSat: 'ᱪᱟᱞᱟᱣᱜ ᱠᱟᱱ ᱰᱟᱢᱯ ᱴᱨᱟᱠ ᱟᱲᱮ ᱯᱟᱥᱮ ᱵᱚᱛᱚᱨ ᱴᱷᱟᱹᱣᱠᱟᱹᱭ ᱢᱮ᱾',
     speechHi: 'डंप ट्रक के चारों ओर खतरों की पहचान करें और सुरक्षित दूरी बनाएं।',
+    hindiText: 'डंप ट्रक के चारों ओर खतरों की पहचान करें और सुरक्षित दूरी बनाएं।',
+    hinglishText: 'Dump truck ke chaaron ore khatron ki pehchaan karein aur surakshit doori banayein.',
     speechSat: 'ᱪᱟᱞᱟᱣᱜ ᱠᱟᱱ ᱰᱟᱢᱯ ᱴᱨᱟᱠ ᱟᱲᱮ ᱯᱟᱥᱮ ᱵᱚᱛᱚᱨ ᱴᱷᱟᱹᱣᱠᱟᱹᱭ ᱢᱮ ᱟᱨ ᱥᱟᱺᱜᱤᱧ ᱨᱮ ᱛᱟᱦᱮᱸᱱ ᱢᱮ᱾',
     speechEn: 'Identify the hazards around the moving dump truck and maintain a safe clearance.',
     bannerText: 'Stay away from moving machinery',
@@ -26,6 +28,8 @@ const STEPS_DATA = [
     titleHi: 'ब्लाइंड स्पॉट की जांच करें और 10 मीटर की सुरक्षित दूरी बनाए रखें।',
     titleSat: 'ᱠᱚᱭᱚᱜ ᱵᱟᱝ ᱧᱮᱞᱚᱜ ᱡᱟᱭᱜᱟ ᱧᱮᱞ ᱢᱮ ᱟᱨ ᱑᱐ ᱢᱤᱴᱟᱨ ᱥᱟᱺᱜᱤᱧ ᱨᱮ ᱛᱟᱦᱮᱸᱱ ᱢᱮ᱾',
     speechHi: 'ब्लाइंड स्पॉट की जांच करें और कम से कम 10 मीटर का सुरक्षित दायरा बनाए रखें।',
+    hindiText: 'ब्लाइंड स्पॉट की जांच करें और कम से कम 10 मीटर का सुरक्षित दायरा बनाए रखें।',
+    hinglishText: 'Blind spot ki jaanch karein aur kam se kam 10 meter ka surakshit daayra banayein.',
     speechSat: 'ᱠᱚᱭᱚᱜ ᱵᱟᱝ ᱧᱮᱞᱚᱜ ᱡᱟᱭᱜᱟ ᱧᱮᱞ ᱢᱮ ᱟᱨ ᱑᱐ ᱢᱤᱴᱟᱨ ᱥᱟᱺᱜᱤᱧ ᱨᱮ ᱛᱟᱦᱮᱸᱱ ᱢᱮ᱾',
     speechEn: 'Check operator blind spots and maintain at least 10 meters clearance zone.',
     bannerText: 'Clearance Zone: 10 Meters Required',
@@ -40,6 +44,8 @@ const STEPS_DATA = [
     titleHi: 'मशीन ऑपरेटर के साथ स्पष्ट आंखों का संपर्क सुनिश्चित करें।',
     titleSat: 'ᱚᱯᱟᱨᱮᱴᱚᱨ ᱥᱟᱶ ᱢᱮᱫ ᱢᱮᱞᱟᱣ ᱴᱷᱟᱹᱣᱠᱟᱹᱭ ᱢᱮ᱾',
     speechHi: 'ऑपरेटर के साथ आंखों का संपर्क बनाएं, जब तक वह रुकने का इशारा ना करे।',
+    hindiText: 'ऑपरेटर के साथ आंखों का संपर्क बनाएं, जब तक वह रुकने का इशारा ना करे।',
+    hinglishText: 'Operator ke saath aankhon ka sampark banayein, jab tak woh rukne ka ishara na kare.',
     speechSat: 'ᱚᱯᱟᱨᱮᱴᱚᱨ ᱥᱟᱶ ᱢᱮᱫ ᱢᱮᱞᱟᱣ ᱴᱷᱟᱹᱣᱠᱟᱹᱭ ᱢᱮ, ᱛᱤᱸᱜᱩ ᱤᱥᱟᱨᱟ ᱵᱟᱭ ᱮᱢ ᱫᱷᱟᱹᱵᱤᱡ᱾',
     speechEn: 'Make direct eye contact with the machine operator before crossing path.',
     bannerText: 'Operator Cabin in Sight • Awaiting Signal',
@@ -54,6 +60,8 @@ const STEPS_DATA = [
     titleHi: 'सुरक्षित पैदल मार्ग की पहचान करें और ऑपरेटर को संकेत दें।',
     titleSat: 'ᱥᱩᱨᱚᱠᱷᱤᱭᱟᱹ ᱛᱟᱲᱟᱢ ᱰᱟᱦᱟᱨ ᱧᱟᱢ ᱢᱮ ᱟᱨ ᱤᱥᱟᱨᱟ ᱮᱢᱟᱭ ᱢᱮ᱾',
     speechHi: 'चिन्हित सुरक्षित पैदल मार्ग पर रहें और कभी भी टेलगेट के नीचे ना जाएं।',
+    hindiText: 'चिन्हित सुरक्षित पैदल मार्ग पर रहें और कभी भी टेलगेट के नीचे ना जाएं।',
+    hinglishText: 'Chinhit surakshit paidal maarg par rahein aur kabhi bhi tailgate ke neeche na jayein.',
     speechSat: 'ᱥᱩᱨᱚᱠᱷᱤᱭᱟᱹ ᱛᱟᱲᱟᱢ ᱰᱟᱦᱟᱨ ᱨᱮ ᱛᱟᱦᱮᱸᱱ ᱢᱮ ᱟᱨ ᱴᱨᱟᱠ ᱛᱟᱭᱚᱢ ᱥᱮᱫ ᱟᱞᱚᱢ ᱪᱟᱞᱟᱜ-ᱟ᱾',
     speechEn: 'Locate designated pedestrian walkway and give green clearance signal.',
     bannerText: 'Designated Green Pathway Clear',
@@ -68,6 +76,8 @@ const STEPS_DATA = [
     titleHi: 'सुरक्षित मार्ग की पुष्टि करें और क्लीयरेंस की रिपोर्ट करें।',
     titleSat: 'ᱥᱩᱨᱚᱠᱷᱤᱭᱟᱹ ᱰᱟᱦᱟᱨ ᱴᱷᱟᱹᱣᱠᱟᱹᱭ ᱢᱮ ᱟᱨ ᱨᱤᱯᱚᱴ ᱮᱢ ᱢᱮ᱾',
     speechHi: 'रास्ता पूरी तरह सुरक्षित है। कंट्रोल रूम को क्लीयरेंस रिपोर्ट दर्ज करें।',
+    hindiText: 'रास्ता पूरी तरह सुरक्षित है। कंट्रोल रूम को क्लीयरेंस रिपोर्ट दर्ज करें।',
+    hinglishText: 'Raasta poori tarah surakshit hai. Control room ko clearance report darj karein.',
     speechSat: 'ᱰᱟᱦᱟᱨ ᱯᱩᱨᱟᱹ ᱥᱩᱨᱚᱠᱷᱤᱭᱟᱹ ᱜᱮᱭᱟ᱾ ᱠᱚᱱᱴᱨᱚᱞ ᱨᱩᱢ ᱨᱮ ᱨᱤᱯᱚᱴ ᱮᱢ ᱢᱮ᱾',
     speechEn: 'Safe passage verified. Register drill clearance to supervisor desk.',
     bannerText: 'Safe Passage Verified • Drill Complete',
@@ -225,19 +235,12 @@ export default function ARTrainingModule({ onBack, onComplete }) {
       wakeAudioHardware();
 
       // Step B: Clear any hung queues and force resume
+      window.speechSynthesis.cancel();
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
-      window.speechSynthesis.cancel();
 
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      // Retain utterance on component ref AND global window to prevent Chrome V8 GC mid-speech
-      activeUtteranceRef.current = utterance;
-      if (typeof window !== 'undefined') {
-        window.activeUtterance = utterance;
-      }
-      
-      const allVoices = window.speechSynthesis.getVoices();
+      const allVoices = window.speechSynthesis.getVoices() || [];
       let selectedVoice = null;
 
       // Multi-tier Fallback Priority:
@@ -256,6 +259,23 @@ export default function ARTrainingModule({ onBack, onComplete }) {
         selectedVoice = allVoices.find(v => v.default) || allVoices[0];
       }
 
+      // Handle macOS TTS behavior when no Hindi voice is installed:
+      // If voice is an English voice and text is Devanagari, English voice will produce silence.
+      // Fallback to Romanized / English so it is NEVER silent!
+      let finalText = textToSpeak;
+      const isEnglishVoice = selectedVoice && selectedVoice.lang && selectedVoice.lang.startsWith('en');
+      const hasDevanagari = /[\u0900-\u097F]/.test(textToSpeak);
+      if (isEnglishVoice && hasDevanagari) {
+        finalText = currentStep.hinglishText || currentStep.speechEn || textToSpeak;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(finalText);
+      // Retain utterance on component ref AND global window to prevent Chrome V8 GC mid-speech
+      activeUtteranceRef.current = utterance;
+      if (typeof window !== 'undefined') {
+        window.activeUtterance = utterance;
+      }
+
       if (selectedVoice) {
         utterance.voice = selectedVoice;
       }
@@ -266,7 +286,7 @@ export default function ARTrainingModule({ onBack, onComplete }) {
       utterance.volume = 1.0;
 
       utterance.onstart = () => {
-        console.log("🔊 Playing safety instruction:", textToSpeak);
+        console.log("🔊 Playing safety instruction:", finalText);
         setIsSpeaking(true);
       };
       utterance.onend = () => {
@@ -287,14 +307,29 @@ export default function ARTrainingModule({ onBack, onComplete }) {
         } catch {}
       };
 
-      window.speechSynthesis.speak(utterance);
+      // 50ms delay gives Chrome time to finish cancel() before queuing
+      setTimeout(() => {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        window.speechSynthesis.speak(utterance);
+      }, 50);
+
     } catch (err) {
       console.error("Failed to speak:", err);
       setIsSpeaking(false);
       activeUtteranceRef.current = null;
       if (typeof window !== 'undefined') window.activeUtterance = null;
+      try {
+        window.speechSynthesis.resume();
+      } catch {}
     }
-  }, [wakeAudioHardware]);
+  }, [wakeAudioHardware, currentStep]);
+
+  // Standard speakText trigger helper requested
+  const speakText = useCallback((text, lang = 'hi-IN') => {
+    playVoiceGuidance(text || currentStep.hindiText || currentStep.speechHi, lang);
+  }, [playVoiceGuidance, currentStep]);
 
   // Helper to resolve text and language for current step
   const getStepNarration = useCallback(() => {
@@ -353,17 +388,10 @@ export default function ARTrainingModule({ onBack, onComplete }) {
       setCurrentStepIndex(nextIdx);
       // Trigger voice instruction for the new step immediately
       const nextStep = STEPS_DATA[nextIdx];
-      let text = nextStep.speechHi || nextStep.titleHi;
-      let targetLang = 'hi-IN';
-      if (language === 'en') {
-        text = nextStep.speechEn || nextStep.titleEn;
-        targetLang = 'en-IN';
-      } else if (language === 'sat') {
-        text = nextStep.speechSat || nextStep.titleSat;
-        targetLang = 'hi-IN';
-      }
+      const targetText = language === 'en' ? nextStep.speechEn : nextStep.hindiText;
+      const targetLang = language === 'en' ? 'en-IN' : 'hi-IN';
       setTimeout(() => {
-        playVoiceGuidance(text, targetLang);
+        speakText(targetText, targetLang);
       }, 250);
     } else {
       setDrillCompleted(true);
@@ -498,21 +526,18 @@ export default function ARTrainingModule({ onBack, onComplete }) {
 
           {/* Audio Speaker Pill with Active Wave & Ripple Animation */}
           <button
-            onClick={() => {
-              const { textToSpeak, targetLang } = getStepNarration();
-              playVoiceGuidance(textToSpeak, targetLang);
-            }}
+            onClick={() => speakText(currentStep.hindiText)}
             className={`w-10 h-10 rounded-full border shadow-lg flex items-center justify-center transition active:scale-95 relative ${
-              isSpeaking
+              isSpeaking || (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking)
                 ? 'bg-amber-500 border-amber-400 text-slate-950 font-black animate-pulse ring-4 ring-amber-400/50'
                 : 'bg-white/95 backdrop-blur-md border-white/40 text-slate-800 hover:bg-white'
             }`}
             title="Play Audio Guidance"
           >
-            {isSpeaking && (
+            {(isSpeaking || (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking)) && (
               <span className="absolute -inset-1 rounded-full border-2 border-amber-400 animate-ping pointer-events-none" />
             )}
-            <span className="text-sm">{isSpeaking ? '🔊' : '🔈'}</span>
+            <span className="text-sm">{(isSpeaking || (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking)) ? '🔊' : '🔈'}</span>
           </button>
         </div>
       </header>
@@ -609,19 +634,16 @@ export default function ARTrainingModule({ onBack, onComplete }) {
             <div className="flex items-center gap-2">
               {/* In-Card Manual Listen Trigger Button */}
               <button
-                onClick={() => {
-                  const { textToSpeak, targetLang } = getStepNarration();
-                  playVoiceGuidance(textToSpeak, targetLang);
-                }}
+                onClick={() => speakText(currentStep.hindiText)}
                 className={`px-3 py-1 rounded-full text-[11px] font-black border transition active:scale-90 flex items-center gap-1.5 shadow-xs ${
-                  isSpeaking
+                  isSpeaking || (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking)
                     ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse ring-2 ring-amber-400/40'
                     : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                 }`}
                 title="Tap to listen to this safety instruction"
               >
                 <span>🔊</span>
-                <span>{isSpeaking ? 'बोल रहा है...' : 'सुनें (Listen)'}</span>
+                <span>{(isSpeaking || (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking)) ? 'बोल रहा है...' : 'सुनें (Listen)'}</span>
               </button>
             </div>
           </div>
